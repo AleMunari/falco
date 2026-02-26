@@ -150,7 +150,7 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
 
       <!-- SEZIONE 2: DOVE DEVO ANDARE (funzione secondaria) -->
       <div class="gtt-section-title">DOVE DEVO ANDARE?</div>
-      <div id="gtt-coords" style="font-size:.8rem;font-weight:700;color:#555;text-align:center">Prima rileva la posizione.</div>
+      <div id="gtt-coords" style="font-size:.8rem;font-weight:700;color:#888;text-align:center">Prima rileva la posizione.</div>
       <button id="btn-gtt-location" onclick="getUserLocation()">📍 RILEVA POSIZIONE</button>
       <button id="btn-gtt-mic" onclick="toggleGTTVoice()">
         <span id="gtt-mic-label">🎤 CHIEDI</span>
@@ -231,11 +231,9 @@ function setStatus(msg, state) {
 // Non chiama cancel() da sola — chi ha fermato il mic ha già aspettato abbastanza.
 function speak(text, onEnd) {
   if (!text) { if (onEnd) onEnd(); return; }
-  // Cancella eventuali TTS in corso
   if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
     window.speechSynthesis.cancel();
   }
-  // Funzione interna con retry (workaround bug Safari/iOS che a volte non fa partire il TTS)
   function doSpeak(retries) {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'it-IT'; u.rate = 0.93; u.pitch = 1; u.volume = 1;
@@ -243,28 +241,19 @@ function speak(text, onEnd) {
     u.onend   = () => { document.getElementById('btn-stop-voice').style.display = 'none'; if (onEnd) onEnd(); };
     u.onerror = (e) => {
       document.getElementById('btn-stop-voice').style.display = 'none';
-      // 'interrupted' è normale (utente ha premuto STOP) — non fare retry
       if (e.error === 'interrupted' || e.error === 'canceled') { if (onEnd) onEnd(); return; }
-      // Su iOS il TTS a volte fallisce con 'not-allowed' subito dopo il mic — retry dopo 800ms
+      // Retry solo per errori audio-busy / not-allowed (iOS microfono appena rilasciato)
       if (retries > 0 && (e.error === 'not-allowed' || e.error === 'audio-busy')) {
-        setTimeout(() => doSpeak(retries - 1), 800);
+        setTimeout(() => doSpeak(retries - 1), 900);
       } else {
         if (onEnd) onEnd();
       }
     };
     window.speechSynthesis.speak(u);
-    // Workaround Chrome/Safari: se dopo 500ms non è ancora partito, riprova
-    if (retries > 0) {
-      setTimeout(() => {
-        if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
-          // Probabilmente bloccato — riprova
-          window.speechSynthesis.cancel();
-          setTimeout(() => doSpeak(retries - 1), 300);
-        }
-      }, 500);
-    }
+    // NON aggiungere timeout di controllo: interferisce col TTS in corso
   }
-  setTimeout(() => doSpeak(2), 100);
+  // 120ms di delay: basta per rilasciare il contesto audio dopo il mic
+  setTimeout(() => doSpeak(2), 120);
 }
 
 function stopVoice() {
@@ -367,9 +356,17 @@ function startRecording() {
 function stopRecording() {
   if (!isRecording) return;
   isRecording = false;
-  if (recognition) { try { recognition.stop(); } catch(e){} recognition = null; }
+  if (recognition) {
+    recognition.onend   = null;
+    recognition.onerror = null;
+    const rec = recognition;
+    recognition = null;
+    try { rec.stop(); } catch(e){}
+    // Lascia 400ms per l'ultimo onresult finale, poi processa
+    setTimeout(() => { try { rec.onresult = null; } catch(e){} }, 400);
+  }
   resetVoiceUI();
-  setTimeout(processVoiceInput, 400);
+  setTimeout(processVoiceInput, 500);
 }
 
 function resetVoiceUI() {
@@ -490,6 +487,7 @@ let stopVoiceRec = null;
 let isStopVoiceRec = false;
 let stopVoiceTranscript = '';
 let lastStopNumber = '';
+let stopVoiceProcessed = false; // Anti-doppia esecuzione
 
 // Scraping orari fermata dal sito GTT tramite allorigins proxy
 async function fetchGTTStop(stopNum) {
@@ -516,12 +514,15 @@ async function fetchGTTStop(stopNum) {
   const errors = [];
   for (const gttUrl of [gttUrlRealtime, gttUrlScheduled]) {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
       const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(gttUrl);
-      const res = await fetch(proxyUrl, {signal: AbortSignal.timeout(12000)});
+      const res = await fetch(proxyUrl, {signal: controller.signal});
+      clearTimeout(timeoutId);
       if (!res.ok) { errors.push('HTTP ' + res.status); continue; }
       const data = await res.json();
       html = data.contents || '';
-      if (html.length > 200) break; // contenuto valido trovato
+      if (html.length > 200) break;
     } catch(e) { errors.push(e.message); }
   }
 
@@ -583,7 +584,9 @@ async function readStopFromPhoto() {
     const result = await callGroqVision(prompt, currentImageBase64);
     const clean = result.replace(/[^0-9]/g, '').trim();
     if (!clean || clean.length < 2) {
-      setGTTStopAnswer('Non riesco a leggere il numero dalla foto. Prova a dire il numero vocalmente.');
+      const msg = 'Non riesco a leggere il numero dalla foto. Prova a dire il numero vocalmente.';
+      setGTTStopAnswer(msg);
+      speak(msg);
       return;
     }
     setGTTStopAnswer('Numero fermata ' + clean + ' rilevato. Cerco gli orari...');
@@ -615,11 +618,11 @@ async function processStopNumber(stopNum) {
     }
     setGTTStopAnswer(displayText.trim());
     setStatus('Orari pronti.', 'active');
-    setTimeout(() => speak(voiceText), 200);
+    speak(voiceText);
   } catch(e) {
     const msg = 'Errore recupero orari: ' + e.message;
     setGTTStopAnswer(msg);
-    setTimeout(() => speak('Errore nella ricerca degli orari. Controlla la connessione.'), 200);
+    speak('Errore nella ricerca degli orari. Controlla la connessione.');
     setStatus('Errore.', 'error');
   }
 }
@@ -647,6 +650,7 @@ function startStopVoice() {
   if (!SR) { setStatus('Usa Safari su iPhone.', 'error'); return; }
   window.speechSynthesis.cancel();
   stopVoiceTranscript = '';
+  stopVoiceProcessed = false;
   isStopVoiceRec = true;
   const btn = document.getElementById('btn-gtt-voce-fermata');
   btn.classList.add('recording');
@@ -663,14 +667,17 @@ function startStopVoice() {
     stopVoiceTranscript = e.results[0][0].transcript;
   };
   stopVoiceRec.onerror = (e) => {
-    if (e.error === 'no-speech') { stopStopVoice(); return; }
+    if (e.error === 'no-speech') return; // lascia che onend gestisca tutto normalmente
     isStopVoiceRec = false; resetStopVoiceUI();
     setStatus('Errore mic: ' + e.error, 'error');
   };
   stopVoiceRec.onend = () => {
     isStopVoiceRec = false;
     resetStopVoiceUI();
-    setTimeout(processStopVoice, 600);
+    if (!stopVoiceProcessed) {
+      stopVoiceProcessed = true;
+      setTimeout(processStopVoice, 600);
+    }
   };
   try { stopVoiceRec.start(); }
   catch(e) { isStopVoiceRec = false; resetStopVoiceUI(); }
@@ -679,7 +686,12 @@ function startStopVoice() {
 function stopStopVoice() {
   if (!isStopVoiceRec) return;
   isStopVoiceRec = false;
-  if (stopVoiceRec) { try { stopVoiceRec.stop(); } catch(e){} stopVoiceRec = null; }
+  if (stopVoiceRec) {
+    // Non nullificare onend: quando stop() scatta, onend chiama processStopVoice
+    const rec = stopVoiceRec;
+    stopVoiceRec = null;
+    try { rec.stop(); } catch(e){}
+  }
   resetStopVoiceUI();
 }
 
@@ -721,7 +733,9 @@ async function processStopVoice() {
         speak('Non ho capito il numero. Riprova dicendo per esempio: fermata duemila.');
       }
     } catch(e) {
-      setGTTStopAnswer('Errore: ' + e.message);
+      const errMsg = 'Errore nella ricerca: ' + e.message;
+      setGTTStopAnswer(errMsg);
+      speak('Errore nella ricerca degli orari. Controlla la connessione.');
     }
   }
 }
@@ -936,7 +950,7 @@ async function processGTTVoice() {
     if (btnR) btnR.textContent = lastGTTLineNumber ? 'ORARI LINEA ' + lastGTTLineNumber : 'ORARI IN TEMPO REALE';
 
     // Delay extra per garantire che il TTS parta dopo il rilascio mic su iOS
-    setTimeout(() => speak(clean), 300);
+    speak(clean);
 
   } catch(err) {
     document.getElementById('gtt-answer').textContent = 'Errore: ' + err.message;
@@ -958,8 +972,9 @@ function exitApp() {
   window.speechSynthesis.cancel();
   if (recognition)    { try { recognition.stop();    } catch(e){} recognition    = null; }
   if (gttRecognition) { try { gttRecognition.stop(); } catch(e){} gttRecognition = null; }
-  isRecording = isGttRecording = false;
-  resetVoiceUI(); resetGTTVoiceUI();
+  if (stopVoiceRec)   { try { stopVoiceRec.stop();   } catch(e){} stopVoiceRec   = null; }
+  isRecording = isGttRecording = isStopVoiceRec = false;
+  resetVoiceUI(); resetGTTVoiceUI(); resetStopVoiceUI();
   document.getElementById('app').style.display          = 'none';
   document.getElementById('settings-fab').style.display = 'none';
   document.getElementById('exit-screen').style.display  = 'flex';
