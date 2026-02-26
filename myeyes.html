@@ -419,6 +419,7 @@ html, body {
         <div id="gtt-wave-bar"><span></span><span></span><span></span><span></span><span></span></div>
       </button>
       <div id="gtt-answer" style="font-size:0.9rem;font-weight:700;color:#aaa;text-align:center;line-height:1.5;padding:0 4px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;"></div>
+      <button id="btn-gtt-realtime" onclick="openGTTRealtime()" style="width:100%;padding:16px;background:linear-gradient(135deg,#FFB800,#FF7A00);border:none;border-radius:16px;font-family:Nunito,sans-serif;font-size:1.1rem;font-weight:900;color:#000;cursor:pointer;margin-top:4px;">ORARI IN TEMPO REALE</button>
     </div>
 
     <div class="bottom-spacer"></div>
@@ -529,8 +530,8 @@ function handleFileInput(event) {
     currentImageBase64 = e.target.result.split(',')[1];
     document.getElementById('preview-img').src = e.target.result;
     document.getElementById('preview-wrap').style.display = 'block';
-    setStatus('Immagine caricata. Tocca DESCRIVI.', 'active');
-    speak('Immagine caricata. Tocca Descrivi per sentire la descrizione.');
+    setStatus('Immagine caricata. Tocca ANALISI AI.', 'active');
+    speak('Immagine caricata. Tocca Analisi AI per sentire la descrizione.');
   };
   reader.readAsDataURL(file);
 }
@@ -852,39 +853,50 @@ async function processGTTVoice() {
   const t = gttTranscript.trim();
   if (!t) {
     document.getElementById('gtt-answer').textContent = 'Non ho sentito nulla. Riprova.';
-    // Piccolo delay prima di speak per non collidere con il recognition appena chiuso
-    setTimeout(() => speak('Non ho sentito nulla. Riprova.'), 400);
+    setTimeout(() => speak('Non ho sentito nulla. Riprova.'), 700);
     return;
   }
 
-  document.getElementById('gtt-answer').textContent = 'Cerco: ' + t;
-  setStatus('Cerco trasporti per: ' + t, 'active');
+  document.getElementById('gtt-answer').textContent = 'Cerco trasporti per: ' + t;
+  setStatus('Elaboro...', 'active');
 
-  const posInfo = (userLat && userLon)
-    ? 'Sono a Torino alle coordinate lat ' + userLat + ' lon ' + userLon + '.'
-    : 'Sono a Torino centro (posizione esatta non disponibile).';
+  let promptGPS = (userLat && userLon)
+    ? 'Le mie coordinate GPS sono: lat ' + userLat + ' lon ' + userLon + ' a Torino. '
+    : 'Sono a Torino centro. ';
 
-  // Costruisci prompt con coordinate se disponibili
-  let destinazione = t;
-  let promptGPS = '';
-  if (userLat && userLon) {
-    promptGPS = 'Le mie coordinate GPS precise sono: latitudine ' + userLat + ' longitudine ' + userLon + '. ';
-  } else {
-    promptGPS = 'Sono a Torino ma non ho le coordinate esatte. ';
-  }
-  const prompt = promptGPS + 'Voglio raggiungere: ' + destinazione + '. Sei un esperto di trasporti pubblici di Torino. Dimmi: 1) il numero esatto della linea GTT (bus o tram) piu comoda da prendere dalla mia posizione, 2) il nome della fermata di partenza piu vicina, 3) il nome della fermata dove scendere. Rispondi in italiano con massimo 3 frasi brevi, parlate, senza elenchi, senza simboli, senza markdown. Se non sei sicuro degli orari attuali dimmelo chiaramente.';
+  const prompt = promptGPS +
+    'Voglio raggiungere: ' + t + '. ' +
+    'Sei un esperto di trasporti GTT Torino. Dimmi in italiano: ' +
+    'il numero della linea bus o tram piu comoda, ' +
+    'il nome della fermata di partenza vicino a me, ' +
+    'il nome della fermata di arrivo. ' +
+    'Massimo 3 frasi parlate senza elenchi senza simboli senza markdown.';
 
   try {
     const answer = await callGroqChat(prompt);
-    const clean = answer.replace(/[*_#`>\-]/g, '').trim();
+    const clean = answer.replace(/[*_#`>]/g, '').trim();
     document.getElementById('gtt-answer').textContent = clean;
-    // Delay 400ms per non collidere con il recognition appena chiuso
-    setTimeout(() => speak(clean), 400);
-    setStatus('Risposta pronta.', 'active');
+    setStatus('Risposta GTT pronta.', 'active');
+    // 700ms di delay: lascia che Safari liberi completamente il microfono prima del TTS
+    setTimeout(() => speak(clean), 700);
   } catch(err) {
     document.getElementById('gtt-answer').textContent = 'Errore di rete. Riprova.';
-    setTimeout(() => speak('Errore di rete. Controlla la connessione.'), 400);
+    setTimeout(() => speak('Errore di rete. Controlla la connessione.'), 700);
     setStatus('Errore', 'error');
+  }
+}
+
+// ── GTT ORARI REALTIME ──
+function openGTTRealtime() {
+  // Apre il sito moovitapp con posizione (funziona meglio di GTT per orari live)
+  // Oppure apre GTT percorari con le coordinate
+  if (userLat && userLon) {
+    // Muoviti a Torino con coordinate
+    const url = 'https://www.muoversiatorino.it/it/bus-tram/';
+    speak('Apro gli orari in tempo reale.');
+    window.open(url, '_blank');
+  } else {
+    speak('Prima rileva la posizione GPS, poi premi Orari in tempo reale.');
   }
 }
 
