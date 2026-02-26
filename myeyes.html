@@ -402,7 +402,7 @@ async function processVoiceInput() {
     document.getElementById('voice-transcript').textContent = 'Cerco orari fermata ' + stopNum + '...';
     if (!gttOpen) toggleGTT();
     setTimeout(async () => {
-      setGTTStopAnswer('Cerco fermata ' + stopNum + '...', false);
+      setGTTStopAnswer('Cerco fermata ' + stopNum + '...');
       await processStopNumber(stopNum);
     }, 300);
     return;
@@ -493,48 +493,81 @@ let lastStopNumber = '';
 
 // Scraping orari fermata dal sito GTT tramite allorigins proxy
 async function fetchGTTStop(stopNum) {
-  const gttUrl = 'https://www.gtt.to.it/cms/percorari/urbano?view=palina&bacino=U&palina=' + encodeURIComponent(stopNum) + '&realtime=true';
   lastStopNumber = stopNum;
   const btnOpen = document.getElementById('btn-gtt-open-stop');
   if (btnOpen) btnOpen.style.display = 'block';
 
-  const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(gttUrl);
-  const res = await fetch(proxyUrl, {signal: AbortSignal.timeout(12000)});
-  if (!res.ok) throw new Error('Proxy error ' + res.status);
-  const data = await res.json();
-  const html = data.contents || '';
+  // URL primaria: /percorari/arrivi?palina=NUMERO (tempo reale, senza ora)
+  // URL secondaria con ora attuale per gli orari programmati
+  const now = new Date();
+  const hh  = String(now.getHours()).padStart(2, '0');
+  const mm  = String(now.getMinutes()).padStart(2, '0');
+  const oraAdesso = hh + '%3A' + mm; // HH%3AMM (: codificato)
 
-  // Parse: cerca linee e orari nel HTML GTT
-  // Struttura GTT: "Linea XX / >>> DEST · ORARIO: HH:MM HH:MM"
+  // GTT usa due endpoint:
+  // 1. /percorari/arrivi?palina=N        → arrivi in tempo reale (preferito)
+  // 2. /percorari/urbano?view=palina&bacino=U&palina=N&ora=HH:MM&realtime=true  → con orari programmati
+  const gttUrlRealtime  = 'https://www.gtt.to.it/cms/percorari/arrivi?palina=' + encodeURIComponent(stopNum);
+  const gttUrlScheduled = 'https://www.gtt.to.it/cms/percorari/urbano?view=palina&bacino=U&palina='
+    + encodeURIComponent(stopNum) + '&ora=' + oraAdesso + '&realtime=true';
+
+  // Prova prima l'endpoint arrivi (tempo reale)
+  let html = '';
+  const errors = [];
+  for (const gttUrl of [gttUrlRealtime, gttUrlScheduled]) {
+    try {
+      const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(gttUrl);
+      const res = await fetch(proxyUrl, {signal: AbortSignal.timeout(12000)});
+      if (!res.ok) { errors.push('HTTP ' + res.status); continue; }
+      const data = await res.json();
+      html = data.contents || '';
+      if (html.length > 200) break; // contenuto valido trovato
+    } catch(e) { errors.push(e.message); }
+  }
+
+  if (!html || html.length < 200) {
+    throw new Error('Nessuna risposta dal sito GTT. ' + errors.join('; '));
+  }
+
+  // Parse HTML GTT: estrai linee e orari
   const lines = [];
+  const textContent = html.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ');
 
-  // Cerca pattern orari nel testo grezzo
-  const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-
-  // Pattern: "Linea X / >>> DEST ORARIO: HH:MM HH:MM"
+  // Pattern 1: formato "Linea X / >>> DEST ORARIO: HH:MM HH:MM"
   const linePattern = /Linea\s+([\w\/]+)\s*[\/»>]+\s*(.*?)\s*ORARIO:\s*((?:\d{2}:\d{2}[\*\s]*)+)/gi;
   let match;
   while ((match = linePattern.exec(textContent)) !== null) {
     const lineNum = match[1].trim();
-    const dest = match[2].replace(/[*×NB:]/g, '').trim().substring(0, 40);
-    const times = match[3].replace(/\*/g, '').trim().split(/\s+/).filter(t => /\d{2}:\d{2}/.test(t)).slice(0, 4);
-    if (times.length > 0) {
-      lines.push({ line: lineNum, dest, times });
-    }
+    const dest    = match[2].replace(/[*×NB:]/g, '').trim().substring(0, 50);
+    const times   = match[3].replace(/\*/g, '').trim().split(/\s+/).filter(t => /^\d{2}:\d{2}$/.test(t)).slice(0, 5);
+    if (times.length > 0) lines.push({ line: lineNum, dest, times });
   }
 
-  // Fallback pattern più semplice
+  // Pattern 2: formato "N >>> DEST ORARIO: HH:MM" (usato nell'endpoint arrivi)
   if (lines.length === 0) {
-    const simplePattern = /(\d{1,3}[A-Z]?)\s*(?:>>>|\/\/|>)\s*([A-Z][^·\n]+?)·?\s*ORARIO:\s*([\d: *]+)/gi;
-    while ((match = simplePattern.exec(textContent)) !== null) {
+    const arrPattern = /(\d{1,3}[A-Z]?)\s*(?:>>>|>>|→)\s*([^\d]+?)\s*ORARIO:\s*((?:\d{2}:\d{2}[\*\s]*)+)/gi;
+    while ((match = arrPattern.exec(textContent)) !== null) {
       const lineNum = match[1].trim();
-      const dest = match[2].trim().substring(0, 40);
-      const times = match[3].replace(/\*/g, '').trim().split(/\s+/).filter(t => /\d{2}:\d{2}/.test(t)).slice(0, 4);
+      const dest    = match[2].replace(/[*×]/g, '').trim().substring(0, 50);
+      const times   = match[3].replace(/\*/g, '').trim().split(/\s+/).filter(t => /^\d{2}:\d{2}$/.test(t)).slice(0, 5);
       if (times.length > 0) lines.push({ line: lineNum, dest, times });
     }
   }
 
-  return { lines, rawText: textContent.substring(0, 500) };
+  // Pattern 3: qualsiasi coppia "NNN → testo ... HH:MM" (fallback generico)
+  if (lines.length === 0) {
+    const genericPattern = /\b(\d{1,3}[A-Z]?)\b[^0-9]{3,60}?(\d{2}:\d{2})/gi;
+    const seen = new Set();
+    while ((match = genericPattern.exec(textContent)) !== null) {
+      const key = match[1];
+      if (!seen.has(key)) {
+        seen.add(key);
+        lines.push({ line: key, dest: '', times: [match[2]] });
+      }
+    }
+  }
+
+  return { lines, ora: hh + ':' + mm, rawLen: html.length };
 }
 
 // Leggi numero fermata da foto
@@ -543,20 +576,20 @@ async function readStopFromPhoto() {
     speak('Nessuna foto. Prima scatta una foto della palina con il numero fermata.');
     return;
   }
-  setGTTStopAnswer('Leggo il numero dalla foto...', false);
+  setGTTStopAnswer('Leggo il numero dalla foto...');
   setStatus('AI legge la foto...', 'active');
   try {
     const prompt = 'Questa è una foto di una fermata GTT di Torino. Cerca il numero della palina/fermata (di solito un numero di 3-5 cifre scritto in grande sulla targhetta). Rispondi SOLO con il numero, senza altro testo. Se non lo trovi, scrivi "non trovato".';
     const result = await callGroqVision(prompt, currentImageBase64);
     const clean = result.replace(/[^0-9]/g, '').trim();
     if (!clean || clean.length < 2) {
-      setGTTStopAnswer('Non riesco a leggere il numero dalla foto. Prova a dire il numero vocalmente.', true);
+      setGTTStopAnswer('Non riesco a leggere il numero dalla foto. Prova a dire il numero vocalmente.');
       return;
     }
-    setGTTStopAnswer('Numero fermata ' + clean + ' rilevato. Cerco gli orari...', false);
+    setGTTStopAnswer('Numero fermata ' + clean + ' rilevato. Cerco gli orari...');
     await processStopNumber(clean);
   } catch(e) {
-    setGTTStopAnswer('Errore lettura foto: ' + e.message, true);
+    setGTTStopAnswer('Errore lettura foto: ' + e.message);
     speak('Errore lettura foto.');
   }
 }
@@ -567,38 +600,39 @@ async function processStopNumber(stopNum) {
   try {
     const result = await fetchGTTStop(stopNum);
     if (result.lines.length === 0) {
-      // Fermata non trovata o nessun orario
-      const msg = 'Fermata ' + stopNum + ' non trovata o nessun passaggio previsto nelle prossime ore.';
-      setGTTStopAnswer(msg, true);
+      const msg = 'Fermata ' + stopNum + ': nessun passaggio trovato nelle prossime ore (ore ' + result.ora + ').';
+      setGTTStopAnswer(msg);
+      speak(msg);
       return;
     }
-    // Costruisci risposta vocale
-    let voiceText = 'Fermata ' + stopNum + '. ';
-    let displayText = '📍 FERMATA ' + stopNum + '\n';
+    // Costruisci risposta vocale e visiva
+    let voiceText = 'Fermata ' + stopNum + ', ore ' + result.ora + '. ';
+    let displayText = '📍 FERMATA ' + stopNum + '  ⏰ ' + result.ora + '\n';
     for (const l of result.lines) {
       const timesStr = l.times.join(', ');
-      voiceText += 'Linea ' + l.line + ' per ' + l.dest + ': ' + timesStr + '. ';
-      displayText += '🚌 Linea ' + l.line + ' → ' + l.dest + '\n⏱ ' + timesStr + '\n';
+      voiceText += 'Linea ' + l.line + (l.dest ? ' per ' + l.dest : '') + ': ' + timesStr + '. ';
+      displayText += '🚌 ' + l.line + (l.dest ? ' → ' + l.dest : '') + '\n⏱ ' + timesStr + '\n';
     }
-    setGTTStopAnswer(displayText.trim(), true);
+    setGTTStopAnswer(displayText.trim());
     setStatus('Orari pronti.', 'active');
-    speak(voiceText);
+    setTimeout(() => speak(voiceText), 200);
   } catch(e) {
-    const msg = 'Errore nel recupero orari: ' + e.message;
-    setGTTStopAnswer(msg, true);
-    speak('Errore nella ricerca degli orari. Controlla la connessione.');
+    const msg = 'Errore recupero orari: ' + e.message;
+    setGTTStopAnswer(msg);
+    setTimeout(() => speak('Errore nella ricerca degli orari. Controlla la connessione.'), 200);
     setStatus('Errore.', 'error');
   }
 }
 
-function setGTTStopAnswer(text, canSpeak) {
+function setGTTStopAnswer(text) {
   document.getElementById('gtt-stop-answer').textContent = text;
 }
 
 function openGTTStopPage() {
   if (!lastStopNumber) return;
-  const url = 'https://www.gtt.to.it/cms/percorari/urbano?view=palina&bacino=U&palina=' + lastStopNumber + '&realtime=true';
-  speak('Apro la pagina GTT della fermata ' + lastStopNumber + '.');
+  // Usa la URL arrivi (tempo reale, senza parametri extra) — la più diretta
+  const url = 'https://www.gtt.to.it/cms/percorari/arrivi?palina=' + encodeURIComponent(lastStopNumber);
+  setTimeout(() => speak('Apro la pagina GTT della fermata ' + lastStopNumber + '.'), 100);
   window.open(url, '_blank');
 }
 
@@ -663,7 +697,7 @@ function resetStopVoiceUI() {
 async function processStopVoice() {
   const txt = stopVoiceTranscript.trim();
   if (!txt) {
-    setGTTStopAnswer('Non ho sentito nulla. Riprova.', false);
+    setGTTStopAnswer('Non ho sentito nulla. Riprova.');
     speak('Non ho sentito. Riprova.');
     return;
   }
@@ -671,23 +705,23 @@ async function processStopVoice() {
   const numMatch = txt.match(/\d{2,5}/);
   if (numMatch) {
     const stopNum = numMatch[0];
-    setGTTStopAnswer('Cerco fermata ' + stopNum + '...', false);
+    setGTTStopAnswer('Cerco fermata ' + stopNum + '...');
     await processStopNumber(stopNum);
   } else {
     // Prova a convertire parole in numero tramite AI
-    setGTTStopAnswer('Elaboro: "' + txt + '"...', false);
+    setGTTStopAnswer('Elaboro: "' + txt + '"...');
     try {
       const aiNum = await callGroqChat('Estrai SOLO il numero della fermata da questo testo (rispondi solo con le cifre, nessun altro testo): "' + txt + '"');
       const cleaned = aiNum.replace(/[^0-9]/g, '').trim();
       if (cleaned && cleaned.length >= 2) {
-        setGTTStopAnswer('Cerco fermata ' + cleaned + '...', false);
+        setGTTStopAnswer('Cerco fermata ' + cleaned + '...');
         await processStopNumber(cleaned);
       } else {
-        setGTTStopAnswer('Non ho capito il numero fermata. Di\' per esempio: "fermata duemila". Hai detto: "' + txt + '"', false);
+        setGTTStopAnswer('Non ho capito il numero fermata. Di\' per esempio: "fermata duemila". Hai detto: "' + txt + '"');
         speak('Non ho capito il numero. Riprova dicendo per esempio: fermata duemila.');
       }
     } catch(e) {
-      setGTTStopAnswer('Errore: ' + e.message, false);
+      setGTTStopAnswer('Errore: ' + e.message);
     }
   }
 }
