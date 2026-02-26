@@ -895,7 +895,13 @@ async function processGTTVoice() {
     const clean = answer.replace(/[*_#`>]/g, '').trim();
     document.getElementById('gtt-answer').textContent = clean;
     setStatus('Risposta GTT pronta.', 'active');
-    // 700ms di delay: lascia che Safari liberi completamente il microfono prima del TTS
+    // Estrai numero linea dalla risposta per precompilare il link GTT
+    lastGTTLineNumber = extractLineNumber(clean);
+    if (lastGTTLineNumber) {
+      document.getElementById('btn-gtt-realtime').textContent = 'ORARI LINEA ' + lastGTTLineNumber;
+    } else {
+      document.getElementById('btn-gtt-realtime').textContent = 'ORARI IN TEMPO REALE';
+    }
     setTimeout(() => speak(clean), 700);
   } catch(err) {
     document.getElementById('gtt-answer').textContent = 'Errore di rete. Riprova.';
@@ -905,17 +911,27 @@ async function processGTTVoice() {
 }
 
 // ── GTT ORARI REALTIME ──
+let lastGTTLineNumber = '';
+
+function extractLineNumber(text) {
+  if (!text) return '';
+  // Cerca pattern tipo: linea 4, tram 4, bus 4, linea 10, numero 57, ecc.
+  const match = text.match(/\b(?:linea|tram|bus|numero|n\.?)\s*([A-Z]?\d{1,3}[A-Z]?)\b/i)
+               || text.match(/\bprendi(?:re)?\s+(?:il\s+)?(?:tram|bus)?\s*([A-Z]?\d{1,3}[A-Z]?)\b/i)
+               || text.match(/\b([A-Z]?\d{1,3}[A-Z]?)\b/);
+  return match ? match[1] : '';
+}
+
 function openGTTRealtime() {
-  // Apre il sito moovitapp con posizione (funziona meglio di GTT per orari live)
-  // Oppure apre GTT percorari con le coordinate
-  if (userLat && userLon) {
-    // Muoviti a Torino con coordinate
-    const url = 'https://www.muoversiatorino.it/it/bus-tram/';
-    speak('Apro gli orari in tempo reale.');
-    window.open(url, '_blank');
+  const lineNum = lastGTTLineNumber;
+  let url = 'https://www.gtt.to.it/cms/percorari/urbano?view=linee&bacino=U';
+  if (lineNum) {
+    url += '&linea=' + encodeURIComponent(lineNum);
+    speak('Apro gli orari della linea ' + lineNum + '.');
   } else {
-    speak('Prima rileva la posizione GPS, poi premi Orari in tempo reale.');
+    speak('Apro gli orari GTT. Cerca la tua linea.');
   }
+  window.open(url, '_blank');
 }
 
 // ── EXIT — interrompe tutto ──
