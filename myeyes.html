@@ -211,42 +211,50 @@ html, body {
   font-size: 0.85rem; font-weight: 700; color: var(--muted);
   text-align: center; line-height: 1.4;
 }
-/* Tasto Rileva posizione grande */
+/* Tasto Rileva posizione — NERO su BIANCO */
 #btn-gtt-location {
-  width: 100%; padding: 18px;
-  background: linear-gradient(135deg, #00FF66 0%, #00AA44 100%);
-  box-shadow: 0 6px 24px rgba(0,255,90,.5);
+  width: 100%; padding: 20px;
+  background: #FFFFFF;
+  box-shadow: 0 4px 18px rgba(255,255,255,.35);
   border: none; border-radius: 16px;
-  font-family: 'Nunito', sans-serif; font-size: 1.3rem; font-weight: 900;
-  color: #000; cursor: pointer; text-align: center;
+  font-family: 'Nunito', sans-serif; font-size: 1.4rem; font-weight: 900;
+  color: #000000; cursor: pointer; text-align: center;
   transition: filter .12s, transform .12s;
 }
-#btn-gtt-location:active { filter: brightness(.8); transform: scale(.97); }
+#btn-gtt-location:active { filter: brightness(.85); transform: scale(.97); }
 
-/* CHIEDI GTT — grande come bottone principale */
+/* CHIEDI GTT toggle — azzurro/rosso come il principale */
 #btn-gtt-mic {
-  width: 100%; padding: 22px 10px;
+  width: 100%; padding: 24px 10px;
   background: linear-gradient(135deg, #00E5FF 0%, #0077FF 100%);
   box-shadow: 0 6px 28px rgba(0,200,255,.7);
   border: none; border-radius: var(--r);
   font-family: 'Nunito', sans-serif; font-size: 2rem; font-weight: 900;
   color: #fff; cursor: pointer; text-align: center;
-  transition: filter .12s, transform .12s;
+  transition: background .2s, box-shadow .2s, transform .12s;
   letter-spacing: 2px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
 }
-#btn-gtt-mic:active { filter: brightness(.8); transform: scale(.96); }
-
-/* LINEE + ORARI piccoli */
-.gtt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.gtt-btn {
-  padding: 14px 8px; border: none; border-radius: 14px;
-  font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 800;
-  cursor: pointer; color: white; text-align: center;
-  transition: filter .12s, transform .12s;
+#btn-gtt-mic:active { transform: scale(.96); filter: brightness(.85); }
+#btn-gtt-mic.recording {
+  background: linear-gradient(135deg, #FF2222 0%, #CC0000 100%);
+  box-shadow: 0 6px 28px rgba(255,30,30,.7);
 }
-.gtt-btn:active { filter: brightness(.8); transform: scale(.96); }
-.gtt-btn-a { background: var(--green); }
-.gtt-btn-b { background: var(--purple); }
+#gtt-mic-sub { font-size: 0.9rem; font-weight: 700; color: rgba(255,255,255,.8); }
+/* onda dentro CHIEDI GTT */
+#gtt-wave-bar {
+  display: none; align-items: center; justify-content: center; gap: 4px; height: 20px;
+}
+#gtt-wave-bar.show { display: flex; }
+#gtt-wave-bar span {
+  width: 4px; background: white; border-radius: 3px;
+  animation: wave .7s ease-in-out infinite;
+}
+#gtt-wave-bar span:nth-child(1){height:5px;animation-delay:0s}
+#gtt-wave-bar span:nth-child(2){height:14px;animation-delay:.1s}
+#gtt-wave-bar span:nth-child(3){height:20px;animation-delay:.2s}
+#gtt-wave-bar span:nth-child(4){height:10px;animation-delay:.3s}
+#gtt-wave-bar span:nth-child(5){height:16px;animation-delay:.15s}
 
 /* SETTINGS */
 #settings-overlay {
@@ -360,14 +368,15 @@ html, body {
 
     <!-- GTT PANEL -->
     <div id="gtt-panel">
-      <div class="gtt-title">GTT TORINO — FERMATE E ORARI</div>
-      <div id="gtt-coords">Premi il pulsante per rilevare la posizione.</div>
+      <div class="gtt-title">GTT TORINO</div>
+      <div id="gtt-coords">Rileva la posizione, poi chiedi dove vuoi andare.</div>
       <button id="btn-gtt-location" onclick="getUserLocation()">RILEVA POSIZIONE</button>
-      <button id="btn-gtt-mic" onclick="voiceGTT()">CHIEDI</button>
-      <div class="gtt-grid">
-        <button class="gtt-btn gtt-btn-a" onclick="openGTTUrban()">LINEE URBANE</button>
-        <button class="gtt-btn gtt-btn-b" onclick="openGTTPercorari()">ORARI</button>
-      </div>
+      <button id="btn-gtt-mic" onclick="toggleGTTVoice()">
+        <span id="gtt-mic-label">CHIEDI</span>
+        <span id="gtt-mic-sub">Parla dopo il clic</span>
+        <div id="gtt-wave-bar"><span></span><span></span><span></span><span></span><span></span></div>
+      </button>
+      <div id="gtt-answer" style="font-size:0.9rem;font-weight:700;color:#aaa;text-align:center;line-height:1.5;padding:0 4px;"></div>
     </div>
 
     <div class="bottom-spacer"></div>
@@ -552,6 +561,7 @@ function startRecording() {
     }
   };
 
+  // Avvio diretto senza speak() — su Safari TTS e STT non possono girare insieme
   try { recognition.start(); } catch(e) { console.warn(e); }
 }
 
@@ -648,11 +658,15 @@ async function callGroqChat(msg) {
 }
 
 // ── GTT ──
+let gttRecognition = null;
+let isGttRecording = false;
+let gttTranscript = '';
+
 function toggleGTT() {
   gttOpen = !gttOpen;
   document.getElementById('gtt-panel').classList.toggle('open', gttOpen);
-  if (gttOpen) speak('Pannello bus aperto.');
-  else speak('Pannello bus chiuso.');
+  if (gttOpen) speak('Pannello bus aperto. Rileva la posizione poi chiedi dove vuoi andare.');
+  else { speak('Pannello bus chiuso.'); stopGTTVoice(); }
 }
 
 function getUserLocation() {
@@ -666,10 +680,11 @@ function getUserLocation() {
     (pos) => {
       userLat = pos.coords.latitude.toFixed(6);
       userLon = pos.coords.longitude.toFixed(6);
+      const acc = Math.round(pos.coords.accuracy);
       document.getElementById('gtt-coords').textContent =
-        'Posizione: lat ' + userLat + ', lon ' + userLon + ' (precisione +/-' + Math.round(pos.coords.accuracy) + 'm)';
+        'Posizione rilevata. Precisione: ' + acc + ' metri.';
       setStatus('Posizione rilevata.', 'active');
-      speak('Posizione rilevata.');
+      speak('Posizione rilevata. Ora premi Chiedi e dimmi dove vuoi andare.');
     },
     () => {
       document.getElementById('gtt-coords').textContent = 'GPS non disponibile. Controlla i permessi in Impostazioni Safari.';
@@ -680,36 +695,121 @@ function getUserLocation() {
   );
 }
 
-function voiceGTT() {
-  speak('Dimmi la linea o la fermata.', () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { speak('Voce non disponibile.'); return; }
-    const r = new SR(); r.lang = 'it-IT'; r.interimResults = false;
-    r.onresult = async (e) => {
-      const t = e.results[0][0].transcript;
-      document.getElementById('gtt-coords').textContent = 'Hai chiesto: ' + t;
-      speak('Cerco informazioni su ' + t);
-      try {
-        const answer = await callGroqChat('Sono a Torino. Dimmi informazioni sulla linea GTT o fermata: ' + t + '. Rispondi in modo breve e parlato.');
-        const clean = answer.replace(/[*_#`>]/g, '').trim();
-        speak(clean);
-        document.getElementById('gtt-coords').textContent = clean;
-      } catch(err) {
-        speak('Errore. Riprova.');
-      }
-    };
-    r.onerror = () => speak('Non ho capito, riprova.');
-    r.start();
-  });
+function toggleGTTVoice() {
+  if (isGttRecording) {
+    stopGTTVoice();
+  } else {
+    startGTTVoice();
+  }
 }
 
-function openGTTUrban() { speak('Apro le linee urbane GTT.'); window.open('https://www.gtt.to.it/cms/linee-e-orari/torino-e-cintura/urbana', '_blank'); }
-function openGTTPercorari() { speak('Apro linee e orari GTT.'); window.open('https://www.gtt.to.it/cms/percorari', '_blank'); }
+function startGTTVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { speak('Voce non disponibile. Usa Safari su iPhone.'); return; }
 
-// ── EXIT ──
+  gttTranscript = '';
+  isGttRecording = true;
+
+  document.getElementById('btn-gtt-mic').classList.add('recording');
+  document.getElementById('gtt-mic-label').textContent = 'STOP';
+  document.getElementById('gtt-mic-sub').textContent = 'Tocca per fermare';
+  document.getElementById('gtt-wave-bar').classList.add('show');
+
+  gttRecognition = new SR();
+  gttRecognition.lang = 'it-IT';
+  gttRecognition.continuous = true;
+  gttRecognition.interimResults = true;
+  gttRecognition.maxAlternatives = 1;
+
+  gttRecognition.onresult = (e) => {
+    let fin = '', int = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) fin += e.results[i][0].transcript + ' ';
+      else int += e.results[i][0].transcript;
+    }
+    gttTranscript += fin;
+    const disp = (gttTranscript + int).trim();
+    document.getElementById('gtt-answer').textContent = disp || 'In ascolto...';
+  };
+
+  gttRecognition.onerror = (e) => {
+    if (e.error === 'no-speech') return;
+    isGttRecording = false;
+    resetGTTVoiceUI();
+    speak('Errore microfono. Riprova.');
+  };
+
+  gttRecognition.onend = () => {
+    if (isGttRecording) {
+      try { gttRecognition.start(); } catch(err) {
+        isGttRecording = false;
+        resetGTTVoiceUI();
+        processGTTVoice();
+      }
+    }
+  };
+
+  try { gttRecognition.start(); } catch(e) { console.warn(e); }
+}
+
+function stopGTTVoice() {
+  if (!isGttRecording) return;
+  isGttRecording = false;
+  if (gttRecognition) { try { gttRecognition.stop(); } catch(e){} gttRecognition = null; }
+  resetGTTVoiceUI();
+  processGTTVoice();
+}
+
+function resetGTTVoiceUI() {
+  document.getElementById('btn-gtt-mic').classList.remove('recording');
+  document.getElementById('gtt-mic-label').textContent = 'CHIEDI';
+  document.getElementById('gtt-mic-sub').textContent = 'Parla dopo il clic';
+  document.getElementById('gtt-wave-bar').classList.remove('show');
+}
+
+async function processGTTVoice() {
+  const t = gttTranscript.trim();
+  if (!t) { speak('Non ho sentito nulla. Riprova.'); return; }
+
+  document.getElementById('gtt-answer').textContent = 'Cerco: ' + t;
+  speak('Cerco come arrivare a ' + t);
+  setStatus('Cerco trasporti...', 'active');
+
+  const posInfo = (userLat && userLon)
+    ? 'Sono a Torino alle coordinate lat ' + userLat + ' lon ' + userLon + '.'
+    : 'Sono a Torino (posizione esatta non disponibile).';
+
+  const prompt = posInfo + ' Voglio andare a: ' + t + '. Dimmi quale linea GTT (bus o tram) devo prendere, dove salire e quante fermate fare. Rispondi in italiano, massimo 4 frasi parlate senza elenchi senza simboli senza markdown.';
+
+  try {
+    const answer = await callGroqChat(prompt);
+    const clean = answer.replace(/[*_#`>\-]/g, '').trim();
+    document.getElementById('gtt-answer').textContent = clean;
+    speak(clean);
+    setStatus('Risposta pronta.', 'active');
+  } catch(err) {
+    speak('Errore di rete. Controlla la connessione.');
+    setStatus('Errore', 'error');
+  }
+}
+
+// ── EXIT — interrompe tutto e chiude ──
 function exitApp() {
-  speak('Arrivederci.');
-  setTimeout(() => { window.close(); }, 900);
+  // Ferma sintesi vocale
+  window.speechSynthesis.cancel();
+  // Ferma riconoscimento vocale principale
+  if (recognition) { try { recognition.stop(); } catch(e){} recognition = null; }
+  isRecording = false;
+  resetVoiceUI();
+  // Ferma riconoscimento GTT
+  if (gttRecognition) { try { gttRecognition.stop(); } catch(e){} gttRecognition = null; }
+  isGttRecording = false;
+  // Parla e chiudi
+  const u = new SpeechSynthesisUtterance('Arrivederci.');
+  u.lang = 'it-IT'; u.rate = 0.93;
+  u.onend = () => { try { window.close(); } catch(e){} location.href = 'about:blank'; };
+  u.onerror = () => { try { window.close(); } catch(e){} location.href = 'about:blank'; };
+  setTimeout(() => window.speechSynthesis.speak(u), 80);
 }
 
 // ── SETTINGS ──
