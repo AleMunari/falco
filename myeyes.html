@@ -212,8 +212,6 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('app').style.display = 'flex';
   setStatus('Pronto.', 'idle');
   setTimeout(() => speak('MyEyes pronto.'), 600);
-  // Sblocca audio al primo tocco su qualsiasi punto dell'app
-  document.getElementById('app').addEventListener('touchstart', unlockAudio, {once: true, passive: true});
   ['btn-camera','btn-gallery','btn-describe','btn-bus','btn-exit'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('touchstart', () => navigator.vibrate && navigator.vibrate(20), {passive:true});
@@ -228,46 +226,19 @@ function setStatus(msg, state) {
 }
 
 // ═══ TTS ══════════════════════════════════════════════════
-// Safari iOS blocca speechSynthesis dopo contesti async (fetch, ecc.)
-// Soluzione: "sbloccare" il contesto audio con una utterance vuota SINCRONA
-// al momento del gesto utente, poi speak() funziona anche dopo await.
-let audioUnlocked = false;
-
-function unlockAudio() {
-  // Chiamare SINCRONAMENTE dal handler del bottone (click/touchstart)
-  // Crea e riproduce subito una utterance silenziosa da 1ms
-  if (audioUnlocked) return;
-  try {
-    const u = new SpeechSynthesisUtterance(' ');
-    u.volume = 0; u.rate = 10; u.lang = 'it-IT';
-    u.onend = () => { audioUnlocked = true; };
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
-  } catch(e) {}
-}
-
 function speak(text, onEnd) {
   if (!text) { if (onEnd) onEnd(); return; }
-  if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
-    window.speechSynthesis.cancel();
-  }
-  function doSpeak(retries) {
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'it-IT'; u.rate = 0.93; u.pitch = 1; u.volume = 1;
-    u.onstart = () => { document.getElementById('btn-stop-voice').style.display = 'block'; };
-    u.onend   = () => { document.getElementById('btn-stop-voice').style.display = 'none'; if (onEnd) onEnd(); };
-    u.onerror = (e) => {
-      document.getElementById('btn-stop-voice').style.display = 'none';
-      if (e.error === 'interrupted' || e.error === 'canceled') { if (onEnd) onEnd(); return; }
-      if (retries > 0) {
-        setTimeout(() => doSpeak(retries - 1), 700);
-      } else {
-        if (onEnd) onEnd();
-      }
-    };
-    window.speechSynthesis.speak(u);
-  }
-  setTimeout(() => doSpeak(3), 120);
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'it-IT'; u.rate = 0.93; u.pitch = 1; u.volume = 1;
+  u.onstart = () => { document.getElementById('btn-stop-voice').style.display = 'block'; };
+  u.onend   = () => { document.getElementById('btn-stop-voice').style.display = 'none'; if (onEnd) onEnd(); };
+  u.onerror = (e) => {
+    document.getElementById('btn-stop-voice').style.display = 'none';
+    if (e.error === 'interrupted' || e.error === 'canceled') { if (onEnd) onEnd(); return; }
+    if (onEnd) onEnd();
+  };
+  window.speechSynthesis.speak(u);
 }
 
 function stopVoice() {
@@ -324,7 +295,6 @@ Inizia con: "Davanti a te..."`;
 
 // ═══ CHIEDI PRINCIPALE ════════════════════════════════════
 function toggleRecording() {
-  unlockAudio();
   if (isRecording) stopRecording();
   else             startRecording();
 }
@@ -588,7 +558,6 @@ async function fetchGTTStop(stopNum) {
 
 // Leggi numero fermata da foto
 async function readStopFromPhoto() {
-  unlockAudio(); // sblocca contesto audio PRIMA dell'await
   if (!currentImageBase64) {
     speak('Nessuna foto. Prima scatta una foto della palina con il numero fermata.');
     return;
@@ -657,7 +626,6 @@ function openGTTStopPage() {
 
 // Voce per numero fermata
 function toggleStopVoice() {
-  unlockAudio(); // sblocca contesto audio PRIMA dell'async mic
   if (isStopVoiceRec) stopStopVoice();
   else startStopVoice();
 }
@@ -811,7 +779,6 @@ async function geocodePlace(dest) {
 }
 
 function toggleGTTVoice() {
-  unlockAudio();
   if (isGttRecording) stopGTTVoice();
   else                startGTTVoice();
 }
