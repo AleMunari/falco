@@ -510,26 +510,30 @@ function toggleRecording() {
 function startRecording() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
-    speak('Il riconoscimento vocale non e\' disponibile. Usa Safari su iPhone.');
+    setStatus('Voce non disponibile. Usa Safari.', 'error');
     return;
   }
+
+  // CRITICO su Safari: TTS e STT non possono coesistere.
+  // Cancella QUALSIASI sintesi vocale attiva prima di avviare il microfono.
+  window.speechSynthesis.cancel();
+
   accumulatedTranscript = '';
   document.getElementById('voice-transcript').textContent = 'In ascolto...';
+
+  // Aggiorna UI subito senza aspettare onstart
+  isRecording = true;
+  setStatus('In ascolto... parla ora', 'listening');
+  document.getElementById('wave-bar').classList.add('show');
+  document.getElementById('btn-play').classList.add('recording');
+  document.getElementById('play-label').textContent = 'STOP';
+  document.getElementById('play-sub').textContent = 'Tocca per fermare';
 
   recognition = new SR();
   recognition.lang = 'it-IT';
   recognition.continuous = true;
   recognition.interimResults = true;
   recognition.maxAlternatives = 1;
-
-  recognition.onstart = () => {
-    isRecording = true;
-    setStatus('In ascolto... parla ora', 'listening');
-    document.getElementById('wave-bar').classList.add('show');
-    document.getElementById('btn-play').classList.add('recording');
-    document.getElementById('play-label').textContent = 'STOP';
-    document.getElementById('play-sub').textContent = 'Tocca per fermare';
-  };
 
   recognition.onresult = (e) => {
     let finalChunk = '', interim = '';
@@ -543,16 +547,17 @@ function startRecording() {
   };
 
   recognition.onerror = (e) => {
-    if (e.error === 'no-speech') return;
+    // no-speech e aborted sono normali su Safari, ignora silenziosamente
+    if (e.error === 'no-speech' || e.error === 'aborted') return;
     isRecording = false;
     resetVoiceUI();
-    setStatus('Errore: ' + e.error, 'error');
-    speak('Non ho capito. Riprova.');
+    setStatus('Errore mic: ' + e.error, 'error');
+    // NON chiamare speak() qui: innescherebbe il loop TTS/STT su Safari
   };
 
   recognition.onend = () => {
     if (isRecording) {
-      // Safari a volte ferma da solo — riavvia se ancora in modalità ascolto
+      // Safari ferma il recognition dopo silenzio, riavvia automaticamente
       try { recognition.start(); } catch(err) {
         isRecording = false;
         resetVoiceUI();
@@ -561,16 +566,18 @@ function startRecording() {
     }
   };
 
-  // Avvio diretto senza speak() — su Safari TTS e STT non possono girare insieme
-  try { recognition.start(); } catch(e) { console.warn(e); }
+  // Delay 200ms per garantire che la sintesi sia davvero silenziata prima dell'avvio
+  setTimeout(() => {
+    try { recognition.start(); } catch(e) { console.warn(e); }
+  }, 200);
 }
-
 function stopRecording() {
   if (!isRecording) return;
   isRecording = false;
   if (recognition) { try { recognition.stop(); } catch(e){} recognition = null; }
   resetVoiceUI();
-  processVoiceInput();
+  // Piccolo delay per far terminare lo stop del recognition prima di processare
+  setTimeout(processVoiceInput, 100);
 }
 
 function resetVoiceUI() {
@@ -705,7 +712,10 @@ function toggleGTTVoice() {
 
 function startGTTVoice() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { speak('Voce non disponibile. Usa Safari su iPhone.'); return; }
+  if (!SR) { setStatus('Voce non disponibile. Usa Safari.', 'error'); return; }
+
+  // Cancella TTS prima di avviare STT — fondamentale su Safari
+  window.speechSynthesis.cancel();
 
   gttTranscript = '';
   isGttRecording = true;
@@ -733,10 +743,10 @@ function startGTTVoice() {
   };
 
   gttRecognition.onerror = (e) => {
-    if (e.error === 'no-speech') return;
+    if (e.error === 'no-speech' || e.error === 'aborted') return;
     isGttRecording = false;
     resetGTTVoiceUI();
-    speak('Errore microfono. Riprova.');
+    setStatus('Errore mic GTT: ' + e.error, 'error');
   };
 
   gttRecognition.onend = () => {
@@ -749,7 +759,9 @@ function startGTTVoice() {
     }
   };
 
-  try { gttRecognition.start(); } catch(e) { console.warn(e); }
+  setTimeout(() => {
+    try { gttRecognition.start(); } catch(e) { console.warn(e); }
+  }, 200);
 }
 
 function stopGTTVoice() {
@@ -772,8 +784,7 @@ async function processGTTVoice() {
   if (!t) { speak('Non ho sentito nulla. Riprova.'); return; }
 
   document.getElementById('gtt-answer').textContent = 'Cerco: ' + t;
-  speak('Cerco come arrivare a ' + t);
-  setStatus('Cerco trasporti...', 'active');
+  setStatus('Cerco: ' + t, 'active');
 
   const posInfo = (userLat && userLon)
     ? 'Sono a Torino alle coordinate lat ' + userLat + ' lon ' + userLon + '.'
