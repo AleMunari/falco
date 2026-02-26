@@ -537,16 +537,17 @@ function stopGTTVoice() {
   isGttRecording = false;
   gttProcessing  = false;
   if (gttRecognition) {
-    // Rimuovi i listener PRIMA di stoppar — così onend non triggera processGTTVoice
+    // Manteniamo onresult attivo così l'ultimo risultato finale viene salvato in gttTranscript
     gttRecognition.onend   = null;
     gttRecognition.onerror = null;
-    gttRecognition.onresult = null;
+    // NON annullare onresult: lasciamo che l'ultimo evento finale venga registrato
     try { gttRecognition.stop(); } catch(e){}
-    gttRecognition = null;
+    // Piccola attesa per permettere a Safari di consegnare l'ultimo onresult prima di nullificarlo
+    setTimeout(() => { if (gttRecognition) { gttRecognition.onresult = null; gttRecognition = null; } }, 400);
   }
   resetGTTVoiceUI();
-  // Aspetta 800ms: Safari deve liberare completamente l'audio prima del TTS
-  setTimeout(triggerGTTProcess, 800);
+  // Aspetta 1200ms (400ms per onresult + 800ms per liberare audio Safari)
+  setTimeout(triggerGTTProcess, 1200);
 }
 
 function triggerGTTProcess() {
