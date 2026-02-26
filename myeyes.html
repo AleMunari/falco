@@ -470,7 +470,9 @@ window.addEventListener('DOMContentLoaded', () => {
   setStatus('Pronto.', 'idle');
   setTimeout(() => speak('MyEyes pronto. Scatta una foto o fai una domanda.'), 500);
 
-  ['btn-camera','btn-gallery','btn-describe','btn-bus','btn-play','btn-exit'].forEach(id => {
+  // Solo i bottoni che NON avviano il microfono ricevono il touchstart
+  // (btn-play e btn-gtt-mic esclusi: su Safari touchstart consuma il gesture context del recognition)
+  ['btn-camera','btn-gallery','btn-describe','btn-bus','btn-exit'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('touchstart', () => navigator.vibrate && navigator.vibrate(20), { passive: true });
   });
@@ -582,15 +584,16 @@ function startRecording() {
     return;
   }
 
-  // CRITICO su Safari: TTS e STT non possono coesistere.
-  // Cancella QUALSIASI sintesi vocale attiva prima di avviare il microfono.
+  // Su Safari recognition.start() DEVE essere chiamato direttamente
+  // nell'evento utente (non in setTimeout) altrimenti viene bloccato.
+  // Cancelliamo il TTS in modo sincrono e avviamo subito.
   window.speechSynthesis.cancel();
 
   accumulatedTranscript = '';
-  document.getElementById('voice-transcript').textContent = 'In ascolto...';
-
-  // Aggiorna UI subito senza aspettare onstart
   isRecording = true;
+
+  // UI rossa subito
+  document.getElementById('voice-transcript').textContent = 'In ascolto...';
   setStatus('In ascolto... parla ora', 'listening');
   document.getElementById('wave-bar').classList.add('show');
   document.getElementById('btn-play').classList.add('recording');
@@ -615,18 +618,23 @@ function startRecording() {
   };
 
   recognition.onerror = (e) => {
-    // no-speech e aborted sono normali su Safari, ignora silenziosamente
     if (e.error === 'no-speech' || e.error === 'aborted') return;
+    // Errore reale: non-allowed = permesso negato
     isRecording = false;
     resetVoiceUI();
-    setStatus('Errore mic: ' + e.error, 'error');
-    // NON chiamare speak() qui: innescherebbe il loop TTS/STT su Safari
+    if (e.error === 'not-allowed') {
+      setStatus('Permesso microfono negato.', 'error');
+    } else {
+      setStatus('Errore mic: ' + e.error, 'error');
+    }
   };
 
   recognition.onend = () => {
     if (isRecording) {
-      // Safari ferma il recognition dopo silenzio, riavvia automaticamente
-      try { recognition.start(); } catch(err) {
+      // Safari ferma il recognition ogni ~60s o dopo silenzio — riavvia
+      try {
+        recognition.start();
+      } catch(err) {
         isRecording = false;
         resetVoiceUI();
         processVoiceInput();
@@ -634,10 +642,15 @@ function startRecording() {
     }
   };
 
-  // Delay 200ms per garantire che la sintesi sia davvero silenziata prima dell'avvio
-  setTimeout(() => {
-    try { recognition.start(); } catch(e) { console.warn(e); }
-  }, 200);
+  // Avvio SINCRONO — nessun setTimeout, chiamato direttamente nel gesture handler
+  try {
+    recognition.start();
+  } catch(e) {
+    // Se fallisce (es. già avviato), resetta e mostra errore
+    isRecording = false;
+    resetVoiceUI();
+    setStatus('Errore avvio mic: ' + e.message, 'error');
+  }
 }
 function stopRecording() {
   if (!isRecording) return;
@@ -782,7 +795,7 @@ function startGTTVoice() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { setStatus('Voce non disponibile. Usa Safari.', 'error'); return; }
 
-  // CRITICO: cancella TTS prima di STT su Safari
+  // Cancella TTS in modo sincrono, poi avvia recognition SUBITO (no setTimeout)
   window.speechSynthesis.cancel();
 
   gttTranscript = '';
@@ -815,7 +828,8 @@ function startGTTVoice() {
     if (e.error === 'no-speech' || e.error === 'aborted') return;
     isGttRecording = false;
     resetGTTVoiceUI();
-    setStatus('Errore mic: ' + e.error, 'error');
+    if (e.error === 'not-allowed') setStatus('Permesso microfono negato.', 'error');
+    else setStatus('Errore mic: ' + e.error, 'error');
   };
 
   gttRecognition.onend = () => {
@@ -828,11 +842,15 @@ function startGTTVoice() {
     }
   };
 
-  setTimeout(() => {
-    try { gttRecognition.start(); } catch(e) { console.warn(e); }
-  }, 200);
+  // Avvio SINCRONO nel gesture handler
+  try {
+    gttRecognition.start();
+  } catch(e) {
+    isGttRecording = false;
+    resetGTTVoiceUI();
+    setStatus('Errore avvio mic: ' + e.message, 'error');
+  }
 }
-
 function stopGTTVoice() {
   if (!isGttRecording) return;
   isGttRecording = false;
