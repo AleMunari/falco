@@ -60,6 +60,9 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
 #btn-gtt-mic{width:100%;padding:24px 10px;background:linear-gradient(135deg,#00E5FF,#0077FF);box-shadow:0 6px 28px rgba(0,200,255,.7);border:none;border-radius:var(--r);font-family:'Nunito',sans-serif;font-size:2rem;font-weight:900;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;transition:background .2s,box-shadow .2s}
 #btn-gtt-mic.recording{background:linear-gradient(135deg,#FF2222,#CC0000);box-shadow:0 6px 28px rgba(255,30,30,.7)}
 #gtt-mic-sub{font-size:.9rem;font-weight:700;color:rgba(255,255,255,.8)}
+.gtt-section-title{font-size:.8rem;font-weight:900;color:#666;letter-spacing:2px;text-transform:uppercase;text-align:center}
+.gtt-subsection{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#btn-gtt-voce-fermata.recording{background:linear-gradient(135deg,#FF2222,#CC0000) !important;box-shadow:0 6px 28px rgba(255,30,30,.7)}
 #gtt-wave-bar{display:none;align-items:center;justify-content:center;gap:4px;height:20px}
 #gtt-wave-bar.show{display:flex}
 #gtt-wave-bar span{width:4px;background:#fff;border-radius:3px;animation:wave .7s ease-in-out infinite}
@@ -125,16 +128,36 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
     </div>
     <div id="voice-transcript">Premi CHIEDI e parla. Premi di nuovo per fermare.</div>
     <div id="gtt-panel">
-      <div class="gtt-title">GTT TORINO</div>
-      <div class="gtt-note">Dati reali OpenStreetMap + AI</div>
-      <div id="gtt-coords">Prima rileva la posizione, poi premi CHIEDI.</div>
-      <button id="btn-gtt-location" onclick="getUserLocation()">RILEVA POSIZIONE</button>
+      <div class="gtt-title">🚌 GTT TORINO</div>
+
+      <!-- SEZIONE 1: ORARI FERMATA (funzione principale) -->
+      <div class="gtt-section-title">ORARI ALLA FERMATA</div>
+      <div class="gtt-subsection">
+        <button id="btn-gtt-foto-fermata" class="btn" style="background:linear-gradient(135deg,#FFF500,#FFB800);padding:18px 10px;margin-bottom:0" onclick="readStopFromPhoto()">
+          <span class="btn-label" style="color:#000;font-size:1.4rem">📷 LEGGI FOTO</span>
+          <span class="btn-sub" style="color:rgba(0,0,0,.65)">Fotografa il numero fermata</span>
+        </button>
+        <button id="btn-gtt-voce-fermata" class="btn" style="background:linear-gradient(135deg,#00E5FF,#0077FF);padding:18px 10px;margin-bottom:0" onclick="toggleStopVoice()">
+          <span id="gtt-stop-label" class="btn-label" style="font-size:1.4rem">🎤 DI' FERMATA</span>
+          <span id="gtt-stop-sub" class="btn-sub">Es: "fermata 1234"</span>
+          <div id="gtt-stop-wave" class="wave-bar"><span></span><span></span><span></span><span></span><span></span></div>
+        </button>
+      </div>
+      <div id="gtt-stop-answer" style="font-size:1rem;font-weight:800;color:#FFE000;text-align:center;line-height:1.5;padding:4px;min-height:20px;white-space:pre-line"></div>
+      <button id="btn-gtt-open-stop" onclick="openGTTStopPage()" style="display:none;width:100%;padding:14px;background:#fff;border:none;border-radius:14px;font-family:'Nunito',sans-serif;font-size:1rem;font-weight:900;color:#000;cursor:pointer">APRI PAGINA GTT FERMATA</button>
+
+      <div style="height:1px;background:#333;margin:4px 0"></div>
+
+      <!-- SEZIONE 2: DOVE DEVO ANDARE (funzione secondaria) -->
+      <div class="gtt-section-title">DOVE DEVO ANDARE?</div>
+      <div id="gtt-coords" style="font-size:.8rem;font-weight:700;color:#555;text-align:center">Prima rileva la posizione.</div>
+      <button id="btn-gtt-location" onclick="getUserLocation()">📍 RILEVA POSIZIONE</button>
       <button id="btn-gtt-mic" onclick="toggleGTTVoice()">
-        <span id="gtt-mic-label">CHIEDI</span>
+        <span id="gtt-mic-label">🎤 CHIEDI</span>
         <span id="gtt-mic-sub">Dove vuoi andare?</span>
         <div id="gtt-wave-bar"><span></span><span></span><span></span><span></span><span></span></div>
       </button>
-      <div id="gtt-answer"></div>
+      <div id="gtt-answer" style="font-size:.9rem;font-weight:700;color:var(--muted);text-align:center;line-height:1.5;padding:0 4px;min-height:20px"></div>
       <button id="btn-gtt-realtime" onclick="openGTTRealtime()">ORARI IN TEMPO REALE</button>
     </div>
     <div class="bottom-spacer"></div>
@@ -208,20 +231,40 @@ function setStatus(msg, state) {
 // Non chiama cancel() da sola — chi ha fermato il mic ha già aspettato abbastanza.
 function speak(text, onEnd) {
   if (!text) { if (onEnd) onEnd(); return; }
-  // Cancella solo se c'è già qualcosa in riproduzione
+  // Cancella eventuali TTS in corso
   if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
     window.speechSynthesis.cancel();
   }
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'it-IT'; u.rate = 0.93; u.pitch = 1; u.volume = 1;
-  u.onstart = () => { document.getElementById('btn-stop-voice').style.display = 'block'; };
-  u.onend   = () => { document.getElementById('btn-stop-voice').style.display = 'none'; if (onEnd) onEnd(); };
-  u.onerror = (e) => {
-    // 'interrupted' è normale se l'utente preme STOP — non è un errore reale
-    document.getElementById('btn-stop-voice').style.display = 'none';
-    if (onEnd) onEnd();
-  };
-  setTimeout(() => window.speechSynthesis.speak(u), 80);
+  // Funzione interna con retry (workaround bug Safari/iOS che a volte non fa partire il TTS)
+  function doSpeak(retries) {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'it-IT'; u.rate = 0.93; u.pitch = 1; u.volume = 1;
+    u.onstart = () => { document.getElementById('btn-stop-voice').style.display = 'block'; };
+    u.onend   = () => { document.getElementById('btn-stop-voice').style.display = 'none'; if (onEnd) onEnd(); };
+    u.onerror = (e) => {
+      document.getElementById('btn-stop-voice').style.display = 'none';
+      // 'interrupted' è normale (utente ha premuto STOP) — non fare retry
+      if (e.error === 'interrupted' || e.error === 'canceled') { if (onEnd) onEnd(); return; }
+      // Su iOS il TTS a volte fallisce con 'not-allowed' subito dopo il mic — retry dopo 800ms
+      if (retries > 0 && (e.error === 'not-allowed' || e.error === 'audio-busy')) {
+        setTimeout(() => doSpeak(retries - 1), 800);
+      } else {
+        if (onEnd) onEnd();
+      }
+    };
+    window.speechSynthesis.speak(u);
+    // Workaround Chrome/Safari: se dopo 500ms non è ancora partito, riprova
+    if (retries > 0) {
+      setTimeout(() => {
+        if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+          // Probabilmente bloccato — riprova
+          window.speechSynthesis.cancel();
+          setTimeout(() => doSpeak(retries - 1), 300);
+        }
+      }, 500);
+    }
+  }
+  setTimeout(() => doSpeak(2), 100);
 }
 
 function stopVoice() {
@@ -350,8 +393,22 @@ async function processVoiceInput() {
   if (/\b(scatta|fotocamera|foto)\b/.test(lo))             { openCamera(); return; }
   if (/\b(galleria|scegli)\b/.test(lo))                    { openGallery(); return; }
   if (/\b(descrivi|analizza|analisi)\b/.test(lo))          { describeScene(); return; }
-  if (/\b(bus|tram|orari|fermata)\b/.test(lo))             { if (!gttOpen) toggleGTT(); return; }
   if (/\b(esci|chiudi)\b/.test(lo))                        { exitApp(); return; }
+
+  // Rilevazione fermata GTT: "fermata 1234" o "palina 1234" o "orari fermata 1234"
+  const fermataMatch = lo.match(/(?:fermata|palina|stop|orari)\s+(\d{2,5})/);
+  if (fermataMatch) {
+    const stopNum = fermataMatch[1];
+    document.getElementById('voice-transcript').textContent = 'Cerco orari fermata ' + stopNum + '...';
+    if (!gttOpen) toggleGTT();
+    setTimeout(async () => {
+      setGTTStopAnswer('Cerco fermata ' + stopNum + '...', false);
+      await processStopNumber(stopNum);
+    }, 300);
+    return;
+  }
+
+  if (/\b(bus|tram|orari|fermata)\b/.test(lo))             { if (!gttOpen) toggleGTT(); return; }
   try {
     const answer = currentImageBase64
       ? await callGroqVision(`Utente chiede: "${transcript}". Rispondi in italiano, max 3 frasi, zero simboli.`, currentImageBase64)
@@ -405,7 +462,7 @@ async function callGroqChat(msg) {
 function toggleGTT() {
   gttOpen = !gttOpen;
   document.getElementById('gtt-panel').classList.toggle('open', gttOpen);
-  if (!gttOpen) stopGTTVoice();
+  if (!gttOpen) { stopGTTVoice(); stopStopVoice(); }
   setStatus(gttOpen ? 'Pannello bus aperto.' : 'Chiuso.', 'idle');
 }
 
@@ -424,6 +481,215 @@ function getUserLocation() {
     () => { document.getElementById('gtt-coords').textContent = 'GPS fallito. Controlla i permessi.'; setStatus('Errore GPS.', 'error'); },
     {enableHighAccuracy:true, timeout:15000}
   );
+}
+
+// ═══ ORARI FERMATA GTT ══════════════════════════════════════
+
+// Variabili per voce fermata
+let stopVoiceRec = null;
+let isStopVoiceRec = false;
+let stopVoiceTranscript = '';
+let lastStopNumber = '';
+
+// Scraping orari fermata dal sito GTT tramite allorigins proxy
+async function fetchGTTStop(stopNum) {
+  const gttUrl = 'https://www.gtt.to.it/cms/percorari/urbano?view=palina&bacino=U&palina=' + encodeURIComponent(stopNum) + '&realtime=true';
+  lastStopNumber = stopNum;
+  const btnOpen = document.getElementById('btn-gtt-open-stop');
+  if (btnOpen) btnOpen.style.display = 'block';
+
+  const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(gttUrl);
+  const res = await fetch(proxyUrl, {signal: AbortSignal.timeout(12000)});
+  if (!res.ok) throw new Error('Proxy error ' + res.status);
+  const data = await res.json();
+  const html = data.contents || '';
+
+  // Parse: cerca linee e orari nel HTML GTT
+  // Struttura GTT: "Linea XX / >>> DEST · ORARIO: HH:MM HH:MM"
+  const lines = [];
+
+  // Cerca pattern orari nel testo grezzo
+  const textContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+
+  // Pattern: "Linea X / >>> DEST ORARIO: HH:MM HH:MM"
+  const linePattern = /Linea\s+([\w\/]+)\s*[\/»>]+\s*(.*?)\s*ORARIO:\s*((?:\d{2}:\d{2}[\*\s]*)+)/gi;
+  let match;
+  while ((match = linePattern.exec(textContent)) !== null) {
+    const lineNum = match[1].trim();
+    const dest = match[2].replace(/[*×NB:]/g, '').trim().substring(0, 40);
+    const times = match[3].replace(/\*/g, '').trim().split(/\s+/).filter(t => /\d{2}:\d{2}/.test(t)).slice(0, 4);
+    if (times.length > 0) {
+      lines.push({ line: lineNum, dest, times });
+    }
+  }
+
+  // Fallback pattern più semplice
+  if (lines.length === 0) {
+    const simplePattern = /(\d{1,3}[A-Z]?)\s*(?:>>>|\/\/|>)\s*([A-Z][^·\n]+?)·?\s*ORARIO:\s*([\d: *]+)/gi;
+    while ((match = simplePattern.exec(textContent)) !== null) {
+      const lineNum = match[1].trim();
+      const dest = match[2].trim().substring(0, 40);
+      const times = match[3].replace(/\*/g, '').trim().split(/\s+/).filter(t => /\d{2}:\d{2}/.test(t)).slice(0, 4);
+      if (times.length > 0) lines.push({ line: lineNum, dest, times });
+    }
+  }
+
+  return { lines, rawText: textContent.substring(0, 500) };
+}
+
+// Leggi numero fermata da foto
+async function readStopFromPhoto() {
+  if (!currentImageBase64) {
+    speak('Nessuna foto. Prima scatta una foto della palina con il numero fermata.');
+    return;
+  }
+  setGTTStopAnswer('Leggo il numero dalla foto...', false);
+  setStatus('AI legge la foto...', 'active');
+  try {
+    const prompt = 'Questa è una foto di una fermata GTT di Torino. Cerca il numero della palina/fermata (di solito un numero di 3-5 cifre scritto in grande sulla targhetta). Rispondi SOLO con il numero, senza altro testo. Se non lo trovi, scrivi "non trovato".';
+    const result = await callGroqVision(prompt, currentImageBase64);
+    const clean = result.replace(/[^0-9]/g, '').trim();
+    if (!clean || clean.length < 2) {
+      setGTTStopAnswer('Non riesco a leggere il numero dalla foto. Prova a dire il numero vocalmente.', true);
+      return;
+    }
+    setGTTStopAnswer('Numero fermata ' + clean + ' rilevato. Cerco gli orari...', false);
+    await processStopNumber(clean);
+  } catch(e) {
+    setGTTStopAnswer('Errore lettura foto: ' + e.message, true);
+    speak('Errore lettura foto.');
+  }
+}
+
+// Elabora numero fermata e parla gli orari
+async function processStopNumber(stopNum) {
+  setStatus('Cerco orari fermata ' + stopNum + '...', 'active');
+  try {
+    const result = await fetchGTTStop(stopNum);
+    if (result.lines.length === 0) {
+      // Fermata non trovata o nessun orario
+      const msg = 'Fermata ' + stopNum + ' non trovata o nessun passaggio previsto nelle prossime ore.';
+      setGTTStopAnswer(msg, true);
+      return;
+    }
+    // Costruisci risposta vocale
+    let voiceText = 'Fermata ' + stopNum + '. ';
+    let displayText = '📍 FERMATA ' + stopNum + '\n';
+    for (const l of result.lines) {
+      const timesStr = l.times.join(', ');
+      voiceText += 'Linea ' + l.line + ' per ' + l.dest + ': ' + timesStr + '. ';
+      displayText += '🚌 Linea ' + l.line + ' → ' + l.dest + '\n⏱ ' + timesStr + '\n';
+    }
+    setGTTStopAnswer(displayText.trim(), true);
+    setStatus('Orari pronti.', 'active');
+    speak(voiceText);
+  } catch(e) {
+    const msg = 'Errore nel recupero orari: ' + e.message;
+    setGTTStopAnswer(msg, true);
+    speak('Errore nella ricerca degli orari. Controlla la connessione.');
+    setStatus('Errore.', 'error');
+  }
+}
+
+function setGTTStopAnswer(text, canSpeak) {
+  document.getElementById('gtt-stop-answer').textContent = text;
+}
+
+function openGTTStopPage() {
+  if (!lastStopNumber) return;
+  const url = 'https://www.gtt.to.it/cms/percorari/urbano?view=palina&bacino=U&palina=' + lastStopNumber + '&realtime=true';
+  speak('Apro la pagina GTT della fermata ' + lastStopNumber + '.');
+  window.open(url, '_blank');
+}
+
+// Voce per numero fermata
+function toggleStopVoice() {
+  if (isStopVoiceRec) stopStopVoice();
+  else startStopVoice();
+}
+
+function startStopVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { setStatus('Usa Safari su iPhone.', 'error'); return; }
+  window.speechSynthesis.cancel();
+  stopVoiceTranscript = '';
+  isStopVoiceRec = true;
+  const btn = document.getElementById('btn-gtt-voce-fermata');
+  btn.classList.add('recording');
+  document.getElementById('gtt-stop-label').textContent = '⏹ STOP';
+  document.getElementById('gtt-stop-sub').textContent = 'In ascolto...';
+  document.getElementById('gtt-stop-wave').classList.add('show');
+  document.getElementById('gtt-stop-answer').textContent = 'In ascolto... Di\' il numero fermata.';
+  stopVoiceRec = new SR();
+  stopVoiceRec.lang = 'it-IT';
+  stopVoiceRec.continuous = false;
+  stopVoiceRec.interimResults = false;
+  stopVoiceRec.maxAlternatives = 1;
+  stopVoiceRec.onresult = (e) => {
+    stopVoiceTranscript = e.results[0][0].transcript;
+  };
+  stopVoiceRec.onerror = (e) => {
+    if (e.error === 'no-speech') { stopStopVoice(); return; }
+    isStopVoiceRec = false; resetStopVoiceUI();
+    setStatus('Errore mic: ' + e.error, 'error');
+  };
+  stopVoiceRec.onend = () => {
+    isStopVoiceRec = false;
+    resetStopVoiceUI();
+    setTimeout(processStopVoice, 600);
+  };
+  try { stopVoiceRec.start(); }
+  catch(e) { isStopVoiceRec = false; resetStopVoiceUI(); }
+}
+
+function stopStopVoice() {
+  if (!isStopVoiceRec) return;
+  isStopVoiceRec = false;
+  if (stopVoiceRec) { try { stopVoiceRec.stop(); } catch(e){} stopVoiceRec = null; }
+  resetStopVoiceUI();
+}
+
+function resetStopVoiceUI() {
+  const btn = document.getElementById('btn-gtt-voce-fermata');
+  if (btn) btn.classList.remove('recording');
+  const lbl = document.getElementById('gtt-stop-label');
+  if (lbl) lbl.textContent = '🎤 DI\' FERMATA';
+  const sub = document.getElementById('gtt-stop-sub');
+  if (sub) sub.textContent = 'Es: "fermata 1234"';
+  const wave = document.getElementById('gtt-stop-wave');
+  if (wave) wave.classList.remove('show');
+}
+
+async function processStopVoice() {
+  const txt = stopVoiceTranscript.trim();
+  if (!txt) {
+    setGTTStopAnswer('Non ho sentito nulla. Riprova.', false);
+    speak('Non ho sentito. Riprova.');
+    return;
+  }
+  // Estrai numero dalla voce: "fermata 1234" o "millequattrocentocinque" o "1234"
+  const numMatch = txt.match(/\d{2,5}/);
+  if (numMatch) {
+    const stopNum = numMatch[0];
+    setGTTStopAnswer('Cerco fermata ' + stopNum + '...', false);
+    await processStopNumber(stopNum);
+  } else {
+    // Prova a convertire parole in numero tramite AI
+    setGTTStopAnswer('Elaboro: "' + txt + '"...', false);
+    try {
+      const aiNum = await callGroqChat('Estrai SOLO il numero della fermata da questo testo (rispondi solo con le cifre, nessun altro testo): "' + txt + '"');
+      const cleaned = aiNum.replace(/[^0-9]/g, '').trim();
+      if (cleaned && cleaned.length >= 2) {
+        setGTTStopAnswer('Cerco fermata ' + cleaned + '...', false);
+        await processStopNumber(cleaned);
+      } else {
+        setGTTStopAnswer('Non ho capito il numero fermata. Di\' per esempio: "fermata duemila". Hai detto: "' + txt + '"', false);
+        speak('Non ho capito il numero. Riprova dicendo per esempio: fermata duemila.');
+      }
+    } catch(e) {
+      setGTTStopAnswer('Errore: ' + e.message, false);
+    }
+  }
 }
 
 // Distanza in metri tra due coordinate
@@ -537,16 +803,16 @@ function stopGTTVoice() {
   isGttRecording = false;
   gttProcessing  = false;
   if (gttRecognition) {
-    // Manteniamo onresult attivo così l'ultimo risultato finale viene salvato in gttTranscript
     gttRecognition.onend   = null;
     gttRecognition.onerror = null;
-    // NON annullare onresult: lasciamo che l'ultimo evento finale venga registrato
-    try { gttRecognition.stop(); } catch(e){}
-    // Piccola attesa per permettere a Safari di consegnare l'ultimo onresult prima di nullificarlo
-    setTimeout(() => { if (gttRecognition) { gttRecognition.onresult = null; gttRecognition = null; } }, 400);
+    // NON nullificare onresult subito: Safari deve ancora consegnare l'ultimo risultato finale
+    const rec = gttRecognition;
+    gttRecognition = null;
+    try { rec.stop(); } catch(e){}
+    setTimeout(() => { try { rec.onresult = null; } catch(e){} }, 500);
   }
   resetGTTVoiceUI();
-  // Aspetta 1200ms (400ms per onresult + 800ms per liberare audio Safari)
+  // 1200ms: 500ms per onresult finale + 700ms per rilascio audio Safari
   setTimeout(triggerGTTProcess, 1200);
 }
 
@@ -635,7 +901,8 @@ async function processGTTVoice() {
     const btnR = document.getElementById('btn-gtt-realtime');
     if (btnR) btnR.textContent = lastGTTLineNumber ? 'ORARI LINEA ' + lastGTTLineNumber : 'ORARI IN TEMPO REALE';
 
-    speak(clean);
+    // Delay extra per garantire che il TTS parta dopo il rilascio mic su iOS
+    setTimeout(() => speak(clean), 300);
 
   } catch(err) {
     document.getElementById('gtt-answer').textContent = 'Errore: ' + err.message;
