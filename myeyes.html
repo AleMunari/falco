@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MyEYES">
+<meta name="theme-color" content="#000000">
+<title>MyEYES</title>
+
+<!-- Icona nera/gialla per "Aggiungi a schermata Home" -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23000000'/%3E%3Ctext x='90' y='118' font-size='52' text-anchor='middle' font-family='Georgia,serif' fill='%23FFE600' font-weight='bold'%3EMyEYES%3C/text%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg:      #000000;
+  --surface: #111111;
+  --card:    #1a1a1a;
+  --border:  #444444;
+  --yellow:  #FFE000;
+  --brown:   #BF5B00;
+  --green:   #00C94A;
+  --blue:    #00AAFF;
+  --red:     #FF1A1A;
+  --purple:  #AA00FF;
+  --text:    #ffffff;
+  --muted:   #aaaaaa;
+  --r:       22px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%; width: 100%;
+  background: var(--bg);
+  font-family: 'Nunito', sans-serif;
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* ══ APP ══ */
+#app {
+  display: none;
+  position: fixed; inset: 0;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+/* HEADER */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px;
+  padding-top: max(12px, env(safe-area-inset-top));
+  background: var(--bg);
+  border-bottom: 3px solid var(--yellow);
+  flex-shrink: 0;
+}
+.logo {
+  font-size: 2rem; font-weight: 900;
+  color: var(--yellow); letter-spacing: -1px;
+  cursor: pointer; user-select: none;
+}
+.settings-btn {
+  width: 44px; height: 44px;
+  background: var(--yellow);
+  border: none; border-radius: 12px;
+  color: #000; font-size: 1.3rem;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+
+/* STATUS */
+#status-bar {
+  padding: 8px 20px;
+  background: var(--card);
+  font-size: 1rem; font-weight: 700; color: var(--muted);
+  min-height: 38px; display: flex; align-items: center; gap: 8px;
+  flex-shrink: 0; border-bottom: 2px solid var(--border);
+}
+#status-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--muted); flex-shrink: 0; transition: background .3s;
+}
+#status-dot.active   { background: var(--green); animation: pulse 1.5s infinite; }
+#status-dot.listening{ background: var(--red); animation: pulse .5s infinite; }
+#status-dot.error    { background: #ff4444; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.2} }
+#status-text { flex: 1; }
+
+/* SCROLL AREA */
+.scroll-area {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  padding: 14px 14px;
+  display: flex; flex-direction: column; gap: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* PREVIEW */
+#preview-wrap {
+  display: none; width: 100%; border-radius: var(--r);
+  overflow: hidden; position: relative;
+  border: 2px solid var(--yellow); max-height: 200px;
+}
+#preview-img { width: 100%; object-fit: cover; max-height: 200px; display: block; }
+.preview-close {
+  position: absolute; top: 10px; right: 10px;
+  width: 36px; height: 36px;
+  background: rgba(0,0,0,.75); border: none; border-radius: 50%;
+  color: white; font-size: 1.1rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Nunito', sans-serif; font-weight: 900;
+}
+
+/* ── GRIGLIE ── */
+.row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* ── BOTTONI GENERICI ── */
+.btn {
+  width: 100%; padding: 0;
+  border: none; border-radius: var(--r);
+  cursor: pointer;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  transition: transform .12s, filter .12s;
+  font-family: 'Nunito', sans-serif;
+  position: relative; overflow: hidden;
+}
+.btn:active { transform: scale(.95); filter: brightness(.85); }
+
+.btn-label {
+  font-size: 2rem; font-weight: 900;
+  letter-spacing: 1px; line-height: 1;
+  color: #fff;
+}
+.btn-sub {
+  font-size: 1rem; font-weight: 700;
+  color: rgba(255,255,255,.75); margin-top: 4px;
+}
+
+/* ── FOTO: nero su giallo brillante ── */
+#btn-camera {
+  background: linear-gradient(160deg, #FFF500 0%, #FFB800 100%);
+  box-shadow: 0 8px 36px rgba(255,220,0,.8);
+  padding: 36px 20px;
+}
+#btn-camera .btn-label { color: #000000; font-size: 2.8rem; letter-spacing: 3px; }
+#btn-camera .btn-sub   { color: rgba(0,0,0,.65); }
+
+/* ── GALLERIA: bianco su marrone brillante ── */
+#btn-gallery {
+  background: linear-gradient(135deg, #FF7A00 0%, #B34400 100%);
+  box-shadow: 0 6px 28px rgba(255,100,0,.7);
+  padding: 28px 10px;
+}
+/* ── DESCRIVI: bianco su verde brillante ── */
+#btn-describe {
+  background: linear-gradient(135deg, #00FF66 0%, #00AA44 100%);
+  box-shadow: 0 6px 28px rgba(0,255,90,.6);
+  padding: 28px 10px;
+}
+#btn-describe .btn-label { color: #000; }
+#btn-describe .btn-sub   { color: rgba(0,0,0,.65); }
+
+/* ── CHIEDI: bianco su azzurro brillante ── */
+#btn-play {
+  background: linear-gradient(135deg, #00E5FF 0%, #0077FF 100%);
+  box-shadow: 0 6px 28px rgba(0,200,255,.7);
+  padding: 28px 10px;
+}
+/* ── INTERROMPI: bianco su rosso brillante ── */
+#btn-stop {
+  background: linear-gradient(135deg, #FF2222 0%, #CC0000 100%);
+  box-shadow: 0 6px 28px rgba(255,30,30,.7);
+  padding: 28px 10px;
+  opacity: .35; pointer-events: none;
+  transition: opacity .3s, transform .12s, filter .12s;
+}
+#btn-stop.active { opacity: 1; pointer-events: auto; }
+
+/* ── BUS: bianco su viola brillante ── */
+#btn-bus {
+  background: linear-gradient(135deg, #CC00FF 0%, #7700BB 100%);
+  box-shadow: 0 6px 28px rgba(180,0,255,.7);
+  padding: 28px 10px;
+}
+/* ── ESCI: nero su giallo brillante ── */
+#btn-exit {
+  background: linear-gradient(135deg, #FFF500 0%, #FFB800 100%);
+  box-shadow: 0 6px 28px rgba(255,220,0,.7);
+  padding: 28px 10px;
+}
+#btn-exit .btn-label { color: #000000; }
+#btn-exit .btn-sub   { color: rgba(0,0,0,.65); }
+.wave-bar {
+  display: none; align-items: center; justify-content: center; gap: 5px;
+  height: 26px; margin-top: 6px;
+}
+.wave-bar.show { display: flex; }
+.wave-bar span {
+  width: 5px; background: white; border-radius: 3px;
+  animation: wave .7s ease-in-out infinite;
+}
+.wave-bar span:nth-child(1){height:6px;animation-delay:0s}
+.wave-bar span:nth-child(2){height:18px;animation-delay:.1s}
+.wave-bar span:nth-child(3){height:24px;animation-delay:.2s}
+.wave-bar span:nth-child(4){height:14px;animation-delay:.3s}
+.wave-bar span:nth-child(5){height:20px;animation-delay:.15s}
+.wave-bar span:nth-child(6){height:10px;animation-delay:.25s}
+.wave-bar span:nth-child(7){height:18px;animation-delay:.05s}
+@keyframes wave { 0%,100%{transform:scaleY(1)} 50%{transform:scaleY(.25)} }
+
+/* Trascrizione voce */
+#voice-transcript {
+  text-align: center; font-size: 0.95rem; font-weight: 700;
+  color: var(--muted); line-height: 1.4;
+  padding: 0 4px;
+}
+
+/* ── RIGA 4: BUS + ESCI ── */
+/* ══ GTT PANEL ══ */
+#gtt-panel {
+  display: none;
+  background: var(--card); border: 2px solid var(--border);
+  border-radius: var(--r); padding: 16px 14px;
+  flex-direction: column; gap: 10px;
+}
+#gtt-panel.open { display: flex; }
+.gtt-title {
+  font-size: 1.2rem; font-weight: 900; color: var(--yellow);
+  text-align: center; letter-spacing: 1px;
+}
+.gtt-input {
+  width: 100%; padding: 14px 16px;
+  background: var(--bg); border: 2px solid var(--border);
+  border-radius: 14px; color: var(--text);
+  font-family: 'Nunito', sans-serif; font-size: 1.1rem; font-weight: 700;
+  outline: none; transition: border-color .2s;
+}
+.gtt-input:focus { border-color: var(--yellow); }
+.gtt-row { display: flex; gap: 8px; }
+.gtt-mic {
+  flex: 0 0 52px; padding: 14px 0;
+  background: var(--purple); color: white; border: none; border-radius: 14px;
+  font-size: 1.2rem; font-weight: 900; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Nunito', sans-serif;
+}
+.gtt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.gtt-btn {
+  padding: 14px 8px; border: none; border-radius: 14px;
+  font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 800;
+  cursor: pointer; color: white; text-align: center;
+  transition: filter .12s, transform .12s;
+}
+.gtt-btn:active { filter: brightness(.8); transform: scale(.96); }
+.gtt-btn-a { background: var(--green); }
+.gtt-btn-b { background: var(--purple); }
+.gtt-btn-c { background: var(--border); font-size: 0.9rem; }
+#gtt-coords { font-size: 0.88rem; font-weight: 700; color: var(--muted); text-align: center; line-height: 1.4; }
+
+/* SETTINGS */
+#settings-overlay {
+  display: none; position: fixed; inset: 0; z-index: 300;
+  background: rgba(0,0,0,.8); align-items: flex-end;
+}
+#settings-overlay.open { display: flex; }
+.settings-sheet {
+  width: 100%; background: var(--card);
+  border-radius: 24px 24px 0 0;
+  padding: 22px 22px max(22px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 14px;
+}
+.s-handle { width: 44px; height: 5px; background: var(--border); border-radius: 3px; margin: 0 auto 4px; }
+.s-title { font-size: 1.2rem; font-weight: 900; color: var(--yellow); }
+.s-row { display: flex; gap: 10px; }
+.s-input {
+  flex: 1; padding: 14px 16px;
+  background: var(--bg); border: 2px solid var(--border);
+  border-radius: 14px; color: var(--text);
+  font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 700;
+  outline: none;
+}
+.s-save {
+  padding: 14px 18px; background: var(--yellow); color: #000;
+  border: none; border-radius: 14px;
+  font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 1rem;
+  cursor: pointer;
+}
+.s-close {
+  padding: 14px; background: var(--border); border: none;
+  border-radius: 14px; color: var(--muted);
+  font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 700;
+  cursor: pointer; text-align: center;
+}
+.s-info { font-size: 0.85rem; font-weight: 700; color: var(--muted); line-height: 1.5; }
+.s-info a { color: var(--yellow); }
+
+.bottom-spacer { height: max(14px, env(safe-area-inset-bottom)); flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo" id="logo-tap">MyEYES</div>
+    <button class="settings-btn" onclick="openSettings()">&#9881;</button>
+  </div>
+
+  <!-- STATUS -->
+  <div id="status-bar">
+    <div id="status-dot"></div>
+    <div id="status-text">Pronto.</div>
+  </div>
+
+  <div class="scroll-area">
+
+    <!-- PREVIEW immagine -->
+    <div id="preview-wrap">
+      <img id="preview-img" src="" alt="Immagine caricata">
+      <button class="preview-close" onclick="clearImage()">X</button>
+    </div>
+
+    <!-- RIGA 1: FOTO -->
+    <button class="btn" id="btn-camera" onclick="openCamera()">
+      <span class="btn-label">FOTO</span>
+      <span class="btn-sub">Scatta con la fotocamera</span>
+    </button>
+
+    <!-- RIGA 2: GALLERIA + DESCRIVI -->
+    <div class="row-2">
+      <button class="btn" id="btn-gallery" onclick="openGallery()">
+        <span class="btn-label">GALLERIA</span>
+        <span class="btn-sub">Scegli foto</span>
+      </button>
+      <button class="btn" id="btn-describe" onclick="describeScene()">
+        <span class="btn-label">DESCRIVI</span>
+        <span class="btn-sub">AI analizza</span>
+      </button>
+    </div>
+
+    <!-- RIGA 3: CHIEDI + INTERROMPI -->
+    <div class="row-2">
+      <button class="btn" id="btn-play" onclick="startRecording()">
+        <span class="btn-label">CHIEDI</span>
+        <span class="btn-sub">Parla</span>
+        <div class="wave-bar" id="wave-bar">
+          <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </button>
+      <button class="btn" id="btn-stop" onclick="stopRecording()">
+        <span class="btn-label">INTERROMPI</span>
+        <span class="btn-sub">Manda all'AI</span>
+      </button>
+    </div>
+    <div id="voice-transcript">Premi CHIEDI, parla, poi INTERROMPI.</div>
+
+    <!-- RIGA 4: BUS + ESCI -->
+    <div class="row-2">
+      <button class="btn" id="btn-bus" onclick="toggleGTT()">
+        <span class="btn-label">BUS</span>
+        <span class="btn-sub">GTT Torino</span>
+      </button>
+      <button class="btn" id="btn-exit" onclick="exitApp()">
+        <span class="btn-label">ESCI</span>
+        <span class="btn-sub">Chiudi</span>
+      </button>
+    </div>
+
+    <!-- GTT PANEL -->
+    <div id="gtt-panel">
+      <div class="gtt-title">GTT TORINO — FERMATE E ORARI</div>
+      <div id="gtt-coords">Premi il pulsante per rilevare la posizione.</div>
+      <button class="gtt-btn gtt-btn-c" onclick="getUserLocation()">RILEVA POSIZIONE GPS</button>
+      <div class="gtt-row">
+        <input class="gtt-input" id="gtt-dest" placeholder="Linea o fermata (es: 4, Porta Nuova)" type="text">
+        <button class="gtt-mic" onclick="voiceGTT()">MIC</button>
+      </div>
+      <div class="gtt-grid">
+        <button class="gtt-btn gtt-btn-a" onclick="openGTTUrban()">LINEE URBANE</button>
+        <button class="gtt-btn gtt-btn-b" onclick="openGTTPercorari()">ORARI</button>
+        <button class="gtt-btn gtt-btn-c" onclick="openMuoversi()">MUOVERSI TORINO</button>
+        <button class="gtt-btn gtt-btn-c" onclick="openGTTHome()">SITO GTT</button>
+      </div>
+    </div>
+
+    <div class="bottom-spacer"></div>
+  </div>
+</div>
+
+<!-- SETTINGS OVERLAY -->
+<div id="settings-overlay" onclick="closeSettingsIfBg(event)">
+  <div class="settings-sheet">
+    <div class="s-handle"></div>
+    <div class="s-title">IMPOSTAZIONI</div>
+    <div class="s-row">
+      <input class="s-input" id="settings-key" type="password" placeholder="gsk_..." autocomplete="off">
+      <button class="s-save" onclick="saveKeyFromSettings()">SALVA</button>
+    </div>
+    <p class="s-info">API Key Groq — gratuita su <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a></p>
+    <button class="s-close" onclick="closeSettings()">CHIUDI</button>
+  </div>
+</div>
+
+<!-- FILE INPUTS -->
+<input type="file" id="file-camera" accept="image/*" capture="environment" style="display:none" onchange="handleFileInput(event)">
+<input type="file" id="file-gallery" accept="image/*" style="display:none" onchange="handleFileInput(event)">
+
+<script>
+// ── STATE ──
+let apiKey = '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';
+let currentImageBase64 = null;
+let recognition = null;
+let isRecording = false;
+let accumulatedTranscript = '';
+let gttOpen = false;
+let userLat = null, userLon = null;
+let logoTapTimer = null, logoTapCount = 0;
+
+// ── INIT ──
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('app').style.display = 'flex';
+  setStatus('Pronto.', 'idle');
+  setTimeout(() => speak('MyEyes pronto. Scatta una foto, descrivi la scena, o fai una domanda.'), 500);
+
+  document.getElementById('logo-tap').addEventListener('click', () => {
+    logoTapCount++;
+    clearTimeout(logoTapTimer);
+    logoTapTimer = setTimeout(() => { logoTapCount = 0; }, 500);
+    if (logoTapCount >= 2) { logoTapCount = 0; activateGlobalCommand(); }
+  });
+
+  ['btn-camera','btn-gallery','btn-describe','btn-bus','btn-play','btn-stop','btn-exit'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('touchstart', () => navigator.vibrate && navigator.vibrate(20), { passive: true });
+  });
+});
+
+// ── STATUS ──
+function setStatus(msg, state = 'idle') {
+  document.getElementById('status-text').textContent = msg;
+  const dot = document.getElementById('status-dot');
+  dot.className = state === 'active' ? 'active' : state === 'listening' ? 'listening' : state === 'error' ? 'error' : '';
+}
+
+// ── TTS ──
+function speak(text, onEnd) {
+  if (!text) { if (onEnd) onEnd(); return; }
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'it-IT'; u.rate = 0.93; u.pitch = 1; u.volume = 1;
+  u.onend = () => { if (onEnd) onEnd(); };
+  u.onerror = () => { if (onEnd) onEnd(); };
+  setTimeout(() => window.speechSynthesis.speak(u), 80);
+}
+
+// ── CAMERA / GALLERY ──
+function openCamera() {
+  speak('Apro la fotocamera.');
+  document.getElementById('file-camera').click();
+}
+function openGallery() {
+  speak('Scegli una immagine dalla galleria.');
+  document.getElementById('file-gallery').click();
+}
+function handleFileInput(event) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    currentImageBase64 = e.target.result.split(',')[1];
+    document.getElementById('preview-img').src = e.target.result;
+    document.getElementById('preview-wrap').style.display = 'block';
+    setStatus('Immagine caricata. Tocca DESCRIVI.', 'active');
+    speak('Immagine caricata. Tocca Descrivi per sentire la descrizione.');
+  };
+  reader.readAsDataURL(file);
+}
+function clearImage() {
+  currentImageBase64 = null;
+  document.getElementById('preview-wrap').style.display = 'none';
+  document.getElementById('preview-img').src = '';
+  setStatus('Immagine rimossa.', 'idle');
+}
+
+// ── DESCRIVI SCENA ──
+async function describeScene() {
+  if (!currentImageBase64) {
+    speak('Nessuna immagine caricata. Prima scatta una foto o scegli dalla galleria.');
+    return;
+  }
+  setStatus('Analisi AI in corso...', 'active');
+  speak('Sto analizzando la scena, un momento.');
+  const prompt = `Sei un assistente vocale per ipovedenti italiani. Analizza questa immagine e descrivi in italiano con frasi parlate naturali (massimo 5 frasi, nessun elenco, nessun simbolo, nessun markdown):
+1. Cosa c'e' di piu' importante (persone, veicoli, oggetti, ambiente generale).
+2. Pericoli o ostacoli per chi cammina (gradini, auto, lavori, oggetti a terra).
+3. Semafori: specifica CHIARAMENTE il colore esatto visibile (rosso significa fermati, verde significa puoi passare).
+4. Indicazioni di orientamento utili (insegne stradali, nomi di negozi, edifici).
+Parla direttamente alla persona in modo rassicurante. Inizia con: "Davanti a te..."`;
+  try {
+    const result = await callGroqVision(prompt, currentImageBase64);
+    setStatus('Descrizione completata.', 'active');
+    speak(result);
+  } catch (e) {
+    setStatus('Errore: ' + e.message, 'error');
+    speak('Errore durante la descrizione. Controlla la connessione.');
+  }
+}
+
+// ── VOICE CHIEDI / INTERROMPI ──
+function startRecording() {
+  if (isRecording) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    speak('Il riconoscimento vocale non e\' disponibile. Usa Safari su iPhone.');
+    return;
+  }
+  accumulatedTranscript = '';
+  document.getElementById('voice-transcript').textContent = 'In ascolto...';
+
+  recognition = new SR();
+  recognition.lang = 'it-IT';
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = () => {
+    isRecording = true;
+    setStatus('In ascolto... parla ora', 'listening');
+    document.getElementById('wave-bar').classList.add('show');
+    document.getElementById('btn-stop').classList.add('active');
+    document.getElementById('btn-play').style.opacity = '.4';
+    document.getElementById('btn-play').style.pointerEvents = 'none';
+  };
+
+  recognition.onresult = (e) => {
+    let finalChunk = '', interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) finalChunk += e.results[i][0].transcript + ' ';
+      else interim += e.results[i][0].transcript;
+    }
+    accumulatedTranscript += finalChunk;
+    const display = (accumulatedTranscript + interim).trim();
+    document.getElementById('voice-transcript').textContent = display || 'In ascolto...';
+  };
+
+  recognition.onerror = (e) => {
+    if (e.error === 'no-speech') return;
+    isRecording = false;
+    resetVoiceUI();
+    setStatus('Errore: ' + e.error, 'error');
+    speak('Non ho capito. Riprova.');
+  };
+
+  recognition.onend = () => {
+    if (isRecording) {
+      isRecording = false;
+      resetVoiceUI();
+      processVoiceInput();
+    }
+  };
+
+  speak('Parla. Poi premi Interrompi.', () => {
+    try { recognition.start(); } catch(e) { console.warn(e); }
+  });
+}
+
+function stopRecording() {
+  if (!isRecording) return;
+  isRecording = false;
+  if (recognition) { try { recognition.stop(); } catch(e){} recognition = null; }
+  resetVoiceUI();
+  processVoiceInput();
+}
+
+function resetVoiceUI() {
+  document.getElementById('wave-bar').classList.remove('show');
+  document.getElementById('btn-stop').classList.remove('active');
+  document.getElementById('btn-play').style.opacity = '1';
+  document.getElementById('btn-play').style.pointerEvents = 'auto';
+}
+
+async function processVoiceInput() {
+  const transcript = accumulatedTranscript.trim();
+  if (!transcript) {
+    setStatus('Nessuna parola rilevata.', 'idle');
+    document.getElementById('voice-transcript').textContent = 'Nessuna parola. Premi CHIEDI e riprova.';
+    speak('Non ho sentito nulla. Premi Chiedi e riprova.');
+    return;
+  }
+  setStatus('Hai detto: ' + transcript, 'active');
+  document.getElementById('voice-transcript').textContent = transcript;
+
+  // Comandi speciali
+  const lo = transcript.toLowerCase();
+  if (/\b(scatta|fotocamera|fai una foto|foto)\b/.test(lo)) { openCamera(); return; }
+  if (/\b(galleria|carica|scegli foto)\b/.test(lo)) { openGallery(); return; }
+  if (/\b(descrivi|analizza|cosa vedi|descrizione)\b/.test(lo)) { describeScene(); return; }
+  if (/\b(bus|tram|orari|fermata)\b/.test(lo)) { if (!gttOpen) toggleGTT(); else speak('Il pannello bus e\' gia\' aperto.'); return; }
+  if (/\b(esci|chiudi|esci dall)\b/.test(lo)) { exitApp(); return; }
+
+  setStatus('Elaboro...', 'active');
+  try {
+    let answer;
+    if (currentImageBase64) {
+      const prompt = `L'utente ipovedente guarda questa immagine e chiede: "${transcript}". Rispondi in italiano, in modo diretto e conciso (max 3 frasi parlate, nessun elenco, nessun simbolo).`;
+      answer = await callGroqVision(prompt, currentImageBase64);
+    } else {
+      answer = await callGroqChat(transcript);
+    }
+    speak(answer);
+    setStatus('Risposta completata.', 'active');
+  } catch (e) {
+    speak('Errore. Riprova.');
+    setStatus('Errore: ' + e.message, 'error');
+  }
+}
+
+// ── GROQ API ──
+async function callGroqVision(prompt, imageBase64) {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+    body: JSON.stringify({
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + imageBase64 } }
+        ]
+      }],
+      max_tokens: 400
+    })
+  });
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error?.message || 'HTTP ' + res.status); }
+  return (await res.json()).choices[0].message.content;
+}
+
+async function callGroqChat(msg) {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: 'Sei un assistente vocale per ipovedenti italiani. Rispondi in italiano, in modo breve e chiaro (massimo 3 frasi parlate), senza elenchi, senza simboli, senza markdown. Il testo sara\' letto ad alta voce.' },
+        { role: 'user', content: msg }
+      ],
+      max_tokens: 250
+    })
+  });
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error?.message || 'HTTP ' + res.status); }
+  return (await res.json()).choices[0].message.content;
+}
+
+// ── GTT ──
+function toggleGTT() {
+  gttOpen = !gttOpen;
+  document.getElementById('gtt-panel').classList.toggle('open', gttOpen);
+  if (gttOpen) speak('Pannello bus aperto. Premi Rileva posizione.');
+  else speak('Pannello bus chiuso.');
+}
+
+function getUserLocation() {
+  if (!navigator.geolocation) {
+    speak('Geolocalizzazione non disponibile su questo dispositivo.');
+    return;
+  }
+  setStatus('Rilevo la posizione GPS...', 'active');
+  document.getElementById('gtt-coords').textContent = 'Rilevamento in corso...';
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      userLat = pos.coords.latitude.toFixed(6);
+      userLon = pos.coords.longitude.toFixed(6);
+      document.getElementById('gtt-coords').textContent =
+        'Posizione: lat ' + userLat + ', lon ' + userLon + ' (precisione +/-' + Math.round(pos.coords.accuracy) + 'm)';
+      setStatus('Posizione rilevata.', 'active');
+      speak('Posizione rilevata. Ora puoi aprire il sito GTT per le fermate vicine.');
+    },
+    () => {
+      document.getElementById('gtt-coords').textContent = 'GPS non disponibile. Controlla i permessi in Impostazioni Safari.';
+      setStatus('Errore GPS', 'error');
+      speak('Non riesco a rilevare la posizione. Controlla i permessi di localizzazione.');
+    },
+    { enableHighAccuracy: true, timeout: 15000 }
+  );
+}
+
+function voiceGTT() {
+  speak('Dì il numero della linea o il nome della fermata.', () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { speak('Voce non disponibile.'); return; }
+    const r = new SR(); r.lang = 'it-IT'; r.interimResults = false;
+    r.onresult = (e) => {
+      const t = e.results[0][0].transcript;
+      document.getElementById('gtt-dest').value = t;
+      speak('Ho sentito ' + t + '. Premi Orari per cercare.');
+    };
+    r.onerror = () => speak('Non ho capito, riprova.');
+    r.start();
+  });
+}
+
+function openGTTUrban() { speak('Apro le linee urbane GTT.'); window.open('https://www.gtt.to.it/cms/linee-e-orari/torino-e-cintura/urbana', '_blank'); }
+function openGTTPercorari() { speak('Apro linee e orari GTT.'); window.open('https://www.gtt.to.it/cms/percorari', '_blank'); }
+function openMuoversi() { speak('Apro Muoversi a Torino.'); window.open('https://www.muoversiatorino.it/it/bus-tram/', '_blank'); }
+function openGTTHome() { speak('Apro il sito GTT.'); window.open('https://www.gtt.to.it', '_blank'); }
+
+// ── EXIT ──
+function exitApp() {
+  speak('Arrivederci.');
+  setTimeout(() => { window.close(); }, 900);
+}
+
+// ── SETTINGS ──
+function openSettings() { document.getElementById('settings-key').value = apiKey; document.getElementById('settings-overlay').classList.add('open'); }
+function closeSettings() { document.getElementById('settings-overlay').classList.remove('open'); }
+function closeSettingsIfBg(e) { if (e.target === document.getElementById('settings-overlay')) closeSettings(); }
+function saveKeyFromSettings() {
+  const val = document.getElementById('settings-key').value.trim();
+  if (val.startsWith('gsk_')) { apiKey = val; closeSettings(); speak('Chiave salvata.'); }
+  else speak('Chiave non valida. Deve iniziare con gsk.');
+}
+
+// ── COMANDO GLOBALE doppio tap logo ──
+function activateGlobalCommand() {
+  speak('Dimmi cosa fare.', () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    const r = new SR(); r.lang = 'it-IT'; r.interimResults = false;
+    r.onresult = (e) => { accumulatedTranscript = e.results[0][0].transcript; processVoiceInput(); };
+    r.onerror = () => speak('Non ho capito.');
+    setStatus('In ascolto...', 'listening');
+    r.start();
+  });
+}
+</script>
+</body>
+</html>
