@@ -65,6 +65,16 @@ html, body {
 #status-dot.error     { background: #ff4444; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.2} }
 #status-text { flex: 1; }
+#btn-stop-voice {
+  padding: 6px 14px;
+  background: linear-gradient(135deg, #FF2222 0%, #CC0000 100%);
+  border: none; border-radius: 10px;
+  font-family: 'Nunito', sans-serif; font-size: 0.85rem; font-weight: 900;
+  color: #fff; cursor: pointer; flex-shrink: 0;
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s;
+}
+#btn-stop-voice.visible { opacity: 1; pointer-events: auto; }
 
 /* SCROLL AREA — tutto in una pagina senza scroll se possibile */
 .scroll-area {
@@ -151,7 +161,7 @@ html, body {
   box-shadow: 0 6px 28px rgba(0,255,90,.6);
   padding: 26px 10px;
 }
-#btn-describe .btn-label { color: #000; }
+#btn-describe .btn-label { color: #000; font-size: 1.55rem; letter-spacing: 0px; }
 #btn-describe .btn-sub   { color: rgba(0,0,0,.65); }
 
 /* RIGA 3: BUS + ESCI */
@@ -188,11 +198,16 @@ html, body {
 .wave-bar span:nth-child(7){height:16px;animation-delay:.05s}
 @keyframes wave { 0%,100%{transform:scaleY(1)} 50%{transform:scaleY(.25)} }
 
-/* Trascrizione */
+/* Trascrizione — max 2 righe troncate */
 #voice-transcript {
   text-align: center; font-size: 0.9rem; font-weight: 700;
   color: var(--muted); line-height: 1.4;
-  padding: 0 4px; min-height: 20px;
+  padding: 0 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-height: 2.8em;
 }
 
 /* ══ GTT PANEL ══ */
@@ -340,6 +355,7 @@ html, body {
   <div id="status-bar">
     <div id="status-dot"></div>
     <div id="status-text">Pronto.</div>
+    <button id="btn-stop-voice" onclick="stopVoice()" title="Interrompi voce">STOP</button>
   </div>
 
   <div class="scroll-area">
@@ -372,8 +388,8 @@ html, body {
         <span class="btn-sub">Scegli foto</span>
       </button>
       <button class="btn" id="btn-describe" onclick="describeScene()">
-        <span class="btn-label">DESCRIVI</span>
-        <span class="btn-sub">AI analizza</span>
+        <span class="btn-label">ANALISI AI</span>
+        <span class="btn-sub">Foto</span>
       </button>
     </div>
 
@@ -394,6 +410,7 @@ html, body {
     <!-- GTT PANEL -->
     <div id="gtt-panel">
       <div class="gtt-title">GTT TORINO</div>
+      <div style="font-size:0.75rem;font-weight:700;color:#888;text-align:center;padding:0 8px;">Linee orientative - verifica orari su gtt.to.it</div>
       <div id="gtt-coords">Rileva la posizione, poi chiedi dove vuoi andare.</div>
       <button id="btn-gtt-location" onclick="getUserLocation()">RILEVA POSIZIONE</button>
       <button id="btn-gtt-mic" onclick="toggleGTTVoice()">
@@ -401,7 +418,7 @@ html, body {
         <span id="gtt-mic-sub">Parla dopo il clic</span>
         <div id="gtt-wave-bar"><span></span><span></span><span></span><span></span><span></span></div>
       </button>
-      <div id="gtt-answer" style="font-size:0.9rem;font-weight:700;color:#aaa;text-align:center;line-height:1.5;padding:0 4px;"></div>
+      <div id="gtt-answer" style="font-size:0.9rem;font-weight:700;color:#aaa;text-align:center;line-height:1.5;padding:0 4px;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;"></div>
     </div>
 
     <div class="bottom-spacer"></div>
@@ -471,9 +488,27 @@ function speak(text, onEnd) {
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'it-IT'; u.rate = 0.93; u.pitch = 1; u.volume = 1;
-  u.onend = () => { if (onEnd) onEnd(); };
-  u.onerror = () => { if (onEnd) onEnd(); };
+  u.onstart = () => {
+    const btn = document.getElementById('btn-stop-voice');
+    if (btn) btn.classList.add('visible');
+  };
+  u.onend = () => {
+    const btn = document.getElementById('btn-stop-voice');
+    if (btn) btn.classList.remove('visible');
+    if (onEnd) onEnd();
+  };
+  u.onerror = () => {
+    const btn = document.getElementById('btn-stop-voice');
+    if (btn) btn.classList.remove('visible');
+    if (onEnd) onEnd();
+  };
   setTimeout(() => window.speechSynthesis.speak(u), 80);
+}
+
+function stopVoice() {
+  window.speechSynthesis.cancel();
+  const btn = document.getElementById('btn-stop-voice');
+  if (btn) btn.classList.remove('visible');
 }
 
 // ── CAMERA / GALLERY ──
@@ -829,7 +864,15 @@ async function processGTTVoice() {
     ? 'Sono a Torino alle coordinate lat ' + userLat + ' lon ' + userLon + '.'
     : 'Sono a Torino centro (posizione esatta non disponibile).';
 
-  const prompt = posInfo + ' Voglio andare a: ' + t + '. Dimmi quale linea GTT (bus o tram numero) devo prendere, da quale fermata e quante fermate fare. Rispondi in italiano, massimo 3 frasi parlate senza elenchi senza simboli senza markdown.';
+  // Costruisci prompt con coordinate se disponibili
+  let destinazione = t;
+  let promptGPS = '';
+  if (userLat && userLon) {
+    promptGPS = 'Le mie coordinate GPS precise sono: latitudine ' + userLat + ' longitudine ' + userLon + '. ';
+  } else {
+    promptGPS = 'Sono a Torino ma non ho le coordinate esatte. ';
+  }
+  const prompt = promptGPS + 'Voglio raggiungere: ' + destinazione + '. Sei un esperto di trasporti pubblici di Torino. Dimmi: 1) il numero esatto della linea GTT (bus o tram) piu comoda da prendere dalla mia posizione, 2) il nome della fermata di partenza piu vicina, 3) il nome della fermata dove scendere. Rispondi in italiano con massimo 3 frasi brevi, parlate, senza elenchi, senza simboli, senza markdown. Se non sei sicuro degli orari attuali dimmelo chiaramente.';
 
   try {
     const answer = await callGroqChat(prompt);
