@@ -306,6 +306,31 @@ html, body {
 }
 
 .bottom-spacer { height: max(60px, calc(env(safe-area-inset-bottom) + 60px)); flex-shrink: 0; }
+
+/* EXIT SCREEN */
+#exit-screen {
+  display: none;
+  position: fixed; inset: 0; z-index: 999;
+  background: #000;
+  flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 24px; padding: 40px;
+}
+#exit-screen .exit-title {
+  font-size: 2.5rem; font-weight: 900;
+  color: var(--yellow); text-align: center;
+}
+#exit-screen .exit-msg {
+  font-size: 1.2rem; font-weight: 700;
+  color: #aaa; text-align: center; line-height: 1.6;
+}
+#exit-reopen {
+  padding: 20px 40px;
+  background: linear-gradient(135deg, #FFF500 0%, #FFB800 100%);
+  border: none; border-radius: 22px;
+  font-family: 'Nunito', sans-serif; font-size: 1.4rem; font-weight: 900;
+  color: #000; cursor: pointer;
+}
 </style>
 </head>
 <body>
@@ -398,6 +423,13 @@ html, body {
     <p class="s-info">API Key Groq — gratuita su <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a></p>
     <button class="s-close" onclick="closeSettings()">CHIUDI</button>
   </div>
+</div>
+
+<!-- EXIT SCREEN -->
+<div id="exit-screen">
+  <div class="exit-title">ARRIVEDERCI</div>
+  <div class="exit-msg">Chiudi questa scheda dal browser o premi il tasto qui sotto per tornare all'app.</div>
+  <button id="exit-reopen" onclick="document.getElementById('exit-screen').style.display='none';document.getElementById('app').style.display='flex';document.getElementById('settings-fab').style.display='flex';">TORNA ALL'APP</button>
 </div>
 
 <!-- FILE INPUTS -->
@@ -672,16 +704,17 @@ let gttTranscript = '';
 function toggleGTT() {
   gttOpen = !gttOpen;
   document.getElementById('gtt-panel').classList.toggle('open', gttOpen);
-  if (gttOpen) speak('Pannello bus aperto. Rileva la posizione poi chiedi dove vuoi andare.');
-  else { speak('Pannello bus chiuso.'); stopGTTVoice(); }
+  // Nessun speak() qui — il suono potrebbe bloccare il microfono successivo
+  setStatus(gttOpen ? 'Pannello bus aperto.' : 'Pannello bus chiuso.', 'idle');
+  if (!gttOpen) stopGTTVoice();
 }
 
 function getUserLocation() {
   if (!navigator.geolocation) {
-    speak('Geolocalizzazione non disponibile su questo dispositivo.');
+    setStatus('GPS non disponibile.', 'error');
     return;
   }
-  setStatus('Rilevo la posizione GPS...', 'active');
+  setStatus('Rilevo posizione GPS...', 'active');
   document.getElementById('gtt-coords').textContent = 'Rilevamento in corso...';
   navigator.geolocation.getCurrentPosition(
     (pos) => {
@@ -689,14 +722,13 @@ function getUserLocation() {
       userLon = pos.coords.longitude.toFixed(6);
       const acc = Math.round(pos.coords.accuracy);
       document.getElementById('gtt-coords').textContent =
-        'Posizione rilevata. Precisione: ' + acc + ' metri.';
+        'Posizione rilevata. Precisione: ' + acc + ' m. Ora premi CHIEDI.';
       setStatus('Posizione rilevata.', 'active');
-      speak('Posizione rilevata. Ora premi Chiedi e dimmi dove vuoi andare.');
+      // Nessun speak() — non vogliamo bloccare il microfono successivo
     },
     () => {
-      document.getElementById('gtt-coords').textContent = 'GPS non disponibile. Controlla i permessi in Impostazioni Safari.';
+      document.getElementById('gtt-coords').textContent = 'GPS non disponibile. Controlla i permessi Safari.';
       setStatus('Errore GPS', 'error');
-      speak('Non riesco a rilevare la posizione. Controlla i permessi di localizzazione.');
     },
     { enableHighAccuracy: true, timeout: 15000 }
   );
@@ -714,7 +746,7 @@ function startGTTVoice() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { setStatus('Voce non disponibile. Usa Safari.', 'error'); return; }
 
-  // Cancella TTS prima di avviare STT — fondamentale su Safari
+  // CRITICO: cancella TTS prima di STT su Safari
   window.speechSynthesis.cancel();
 
   gttTranscript = '';
@@ -724,6 +756,7 @@ function startGTTVoice() {
   document.getElementById('gtt-mic-label').textContent = 'STOP';
   document.getElementById('gtt-mic-sub').textContent = 'Tocca per fermare';
   document.getElementById('gtt-wave-bar').classList.add('show');
+  document.getElementById('gtt-answer').textContent = 'In ascolto...';
 
   gttRecognition = new SR();
   gttRecognition.lang = 'it-IT';
@@ -746,7 +779,7 @@ function startGTTVoice() {
     if (e.error === 'no-speech' || e.error === 'aborted') return;
     isGttRecording = false;
     resetGTTVoiceUI();
-    setStatus('Errore mic GTT: ' + e.error, 'error');
+    setStatus('Errore mic: ' + e.error, 'error');
   };
 
   gttRecognition.onend = () => {
@@ -769,7 +802,8 @@ function stopGTTVoice() {
   isGttRecording = false;
   if (gttRecognition) { try { gttRecognition.stop(); } catch(e){} gttRecognition = null; }
   resetGTTVoiceUI();
-  processGTTVoice();
+  // Delay 300ms per lasciar terminare il recognition prima di processare
+  setTimeout(processGTTVoice, 300);
 }
 
 function resetGTTVoiceUI() {
@@ -781,45 +815,59 @@ function resetGTTVoiceUI() {
 
 async function processGTTVoice() {
   const t = gttTranscript.trim();
-  if (!t) { speak('Non ho sentito nulla. Riprova.'); return; }
+  if (!t) {
+    document.getElementById('gtt-answer').textContent = 'Non ho sentito nulla. Riprova.';
+    // Piccolo delay prima di speak per non collidere con il recognition appena chiuso
+    setTimeout(() => speak('Non ho sentito nulla. Riprova.'), 400);
+    return;
+  }
 
   document.getElementById('gtt-answer').textContent = 'Cerco: ' + t;
-  setStatus('Cerco: ' + t, 'active');
+  setStatus('Cerco trasporti per: ' + t, 'active');
 
   const posInfo = (userLat && userLon)
     ? 'Sono a Torino alle coordinate lat ' + userLat + ' lon ' + userLon + '.'
-    : 'Sono a Torino (posizione esatta non disponibile).';
+    : 'Sono a Torino centro (posizione esatta non disponibile).';
 
-  const prompt = posInfo + ' Voglio andare a: ' + t + '. Dimmi quale linea GTT (bus o tram) devo prendere, dove salire e quante fermate fare. Rispondi in italiano, massimo 4 frasi parlate senza elenchi senza simboli senza markdown.';
+  const prompt = posInfo + ' Voglio andare a: ' + t + '. Dimmi quale linea GTT (bus o tram numero) devo prendere, da quale fermata e quante fermate fare. Rispondi in italiano, massimo 3 frasi parlate senza elenchi senza simboli senza markdown.';
 
   try {
     const answer = await callGroqChat(prompt);
     const clean = answer.replace(/[*_#`>\-]/g, '').trim();
     document.getElementById('gtt-answer').textContent = clean;
-    speak(clean);
+    // Delay 400ms per non collidere con il recognition appena chiuso
+    setTimeout(() => speak(clean), 400);
     setStatus('Risposta pronta.', 'active');
   } catch(err) {
-    speak('Errore di rete. Controlla la connessione.');
+    document.getElementById('gtt-answer').textContent = 'Errore di rete. Riprova.';
+    setTimeout(() => speak('Errore di rete. Controlla la connessione.'), 400);
     setStatus('Errore', 'error');
   }
 }
 
-// ── EXIT — interrompe tutto e chiude ──
+// ── EXIT — interrompe tutto ──
 function exitApp() {
-  // Ferma sintesi vocale
+  // Ferma tutto
   window.speechSynthesis.cancel();
-  // Ferma riconoscimento vocale principale
   if (recognition) { try { recognition.stop(); } catch(e){} recognition = null; }
   isRecording = false;
   resetVoiceUI();
-  // Ferma riconoscimento GTT
   if (gttRecognition) { try { gttRecognition.stop(); } catch(e){} gttRecognition = null; }
   isGttRecording = false;
-  // Parla e chiudi
+
+  // Mostra schermata nera con istruzione
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('settings-fab').style.display = 'none';
+  document.getElementById('exit-screen').style.display = 'flex';
+
+  // Prova a chiudere dopo 1.2s
   const u = new SpeechSynthesisUtterance('Arrivederci.');
   u.lang = 'it-IT'; u.rate = 0.93;
-  u.onend = () => { try { window.close(); } catch(e){} location.href = 'about:blank'; };
-  u.onerror = () => { try { window.close(); } catch(e){} location.href = 'about:blank'; };
+  u.onend = () => {
+    setTimeout(() => {
+      try { window.close(); } catch(e) {}
+    }, 300);
+  };
   setTimeout(() => window.speechSynthesis.speak(u), 80);
 }
 
