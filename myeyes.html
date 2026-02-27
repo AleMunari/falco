@@ -497,18 +497,41 @@ async function fetchGTTStop(stopNum) {
   // Prova prima l'endpoint arrivi (tempo reale)
   let html = '';
   const errors = [];
+
+  // Lista proxy CORS ordinata per affidabilità (fallback automatico)
+  const proxyList = [
+    {
+      name: 'corsproxy.io',
+      build: (u) => 'https://corsproxy.io/?' + encodeURIComponent(u),
+      parse: async (res) => await res.text()
+    },
+    {
+      name: 'allorigins',
+      build: (u) => 'https://api.allorigins.win/get?url=' + encodeURIComponent(u),
+      parse: async (res) => { const d = await res.json(); return d.contents || ''; }
+    },
+    {
+      name: 'cors.sh',
+      build: (u) => 'https://proxy.cors.sh/' + u,
+      parse: async (res) => await res.text()
+    }
+  ];
+
+  outer:
   for (const gttUrl of [gttUrlRealtime, gttUrlScheduled]) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
-      const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(gttUrl);
-      const res = await fetch(proxyUrl, {signal: controller.signal});
-      clearTimeout(timeoutId);
-      if (!res.ok) { errors.push('HTTP ' + res.status); continue; }
-      const data = await res.json();
-      html = data.contents || '';
-      if (html.length > 200) break;
-    } catch(e) { errors.push(e.message); }
+    for (const proxy of proxyList) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const proxyUrl = proxy.build(gttUrl);
+        const res = await fetch(proxyUrl, {signal: controller.signal});
+        clearTimeout(timeoutId);
+        if (!res.ok) { errors.push(proxy.name + ':HTTP' + res.status); continue; }
+        const candidate = await proxy.parse(res);
+        if (candidate && candidate.length > 200) { html = candidate; break outer; }
+        errors.push(proxy.name + ':risposta corta');
+      } catch(e) { errors.push(proxy.name + ':' + e.message); }
+    }
   }
 
   if (!html || html.length < 200) {
