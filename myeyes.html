@@ -479,13 +479,23 @@ let stopVoiceProcessed = false; // Anti-doppia esecuzione
 // Scaricato una sola volta per sessione, estratto in memoria, interrogato
 // localmente: niente proxy instabili, niente scraping, niente HTTP 408.
 
-// URL diretto ufficiale GTT (aggiornato ogni giorno) — transitland.org lo usa come fonte primaria
+// ── GTFS ZIP ──────────────────────────────────────────────────────────────────
+// Fonte: Cloudflare Worker personale (gratuito, nessun limite dimensione, cache 6h)
+// Istruzioni setup: vedi cloudflare-worker.js
+//
+// ⚙️  CAMBIA QUESTA RIGA con l'URL del tuo Cloudflare Worker dopo il deploy:
+const GTFS_WORKER_URL  = 'https://gtt-gtfs.almunari.workers.dev';
+//
 const GTFS_ZIP_DIRECT  = 'https://www.gtt.to.it/open_data/gtt_gtfs.zip';
-const GTFS_ZIP_PROXIES = [
-  GTFS_ZIP_DIRECT,  // diretto prima — nessun proxy, più veloce
-  'https://corsproxy.io/?url=' + encodeURIComponent(GTFS_ZIP_DIRECT),
-  'https://api.allorigins.win/raw?url=' + encodeURIComponent(GTFS_ZIP_DIRECT)
+const GTFS_ZIP_GITHUB  = '/gtt_gtfs.zip'; // fallback: ZIP nel repo GitHub Pages
+const GTFS_ZIP_SOURCES = [
+  { url: GTFS_WORKER_URL, label: 'worker' },   // principale — Cloudflare Worker
+  { url: GTFS_ZIP_GITHUB, label: 'repo'   },   // fallback — file nel repo
+  { url: GTFS_ZIP_DIRECT, label: 'diretto'},   // ultimo tentativo — diretto GTT
 ];
+
+// Ultima data del feed scaricato (per mostrare all'utente)
+let gtfsLastModified = null;
 
 let gtfsCache = null; // riempito al primo uso
 
@@ -519,25 +529,38 @@ function parseCSV(txt) {
   });
 }
 
-// Scarica e indicizza il GTFS (una sola volta per sessione)
+// Scarica e indicizza il GTFS ad ogni sessione (sempre fresco).
+// Cache in memoria per la durata della sessione (evita di riscaricare
+// se cerchi più fermate di fila nella stessa apertura dell'app).
 async function loadGTFS(onProgress) {
-  if (gtfsCache) return gtfsCache;
+  if (gtfsCache) return gtfsCache; // già caricato in questa sessione
   await ensureJSZip();
 
-  onProgress('Scarico orari GTT (solo prima volta, ~5MB)...');
+  onProgress('Scarico orari GTT aggiornati...');
   let zipData = null;
   const errors = [];
-  for (const url of GTFS_ZIP_PROXIES) {
+  for (const src of GTFS_ZIP_SOURCES) {
     try {
+      onProgress('Scarico da ' + src.label + '...');
       const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 90000);
-      const res = await fetch(url, { signal: ctrl.signal });
+      const tid  = setTimeout(() => ctrl.abort(), 90000);
+      const res  = await fetch(src.url, { signal: ctrl.signal, cache: 'no-store' });
       clearTimeout(tid);
-      if (!res.ok) { errors.push('HTTP ' + res.status); continue; }
+      if (!res.ok) { errors.push(src.label + ':HTTP' + res.status); continue; }
+      if (!gtfsLastModified) {
+        const lm = res.headers.get('last-modified');
+        if (lm) gtfsLastModified = new Date(lm);
+      }
       zipData = await res.arrayBuffer();
-      if (zipData.byteLength > 50000) break;
-      errors.push('file troppo piccolo'); zipData = null;
-    } catch(e) { errors.push(e.message); }
+      if (zipData.byteLength > 50000) {
+        const dateStr = gtfsLastModified
+          ? ' (' + gtfsLastModified.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'2-digit'}) + ')'
+          : '';
+        onProgress('Download OK' + dateStr);
+        break;
+      }
+      errors.push(src.label + ':file piccolo'); zipData = null;
+    } catch(e) { errors.push(src.label + ':' + e.message); }
   }
   if (!zipData) throw new Error('Download GTFS fallito: ' + errors.join('; '));
 
@@ -864,7 +887,10 @@ async function processStopNumber(stopNum) {
     }
     // Costruisci risposta vocale e visiva (con dati RT se disponibili)
     const nomeStop = result.stopName || ('Fermata ' + stopNum);
-    const rtBadge  = result.hasRT ? ' 🟢 TEMPO REALE' : ' 🔵 ORARI PROGRAMMATI';
+    const dateStr  = gtfsLastModified
+      ? '  📅 ' + gtfsLastModified.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'2-digit'})
+      : '';
+    const rtBadge  = result.hasRT ? ' 🟢 TEMPO REALE' : (' 🔵 PROGRAMMATI' + dateStr);
     let voiceText  = nomeStop + ', ore ' + result.ora + '. ';
     let displayText = '📍 ' + nomeStop + '  ⏰ ' + result.ora + rtBadge + '\n';
 
