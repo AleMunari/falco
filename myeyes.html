@@ -143,8 +143,8 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
           <div id="gtt-stop-wave" class="wave-bar"><span></span><span></span><span></span><span></span><span></span></div>
         </button>
       </div>
-      <div id="gtt-stop-answer" style="font-size:1rem;font-weight:800;color:#FFE000;text-align:center;line-height:1.5;padding:4px;min-height:20px;white-space:pre-line"></div>
-      <button id="btn-gtt-open-stop" onclick="openGTTStopPage()" style="display:none;width:100%;padding:14px;background:#fff;border:none;border-radius:14px;font-family:'Nunito',sans-serif;font-size:1rem;font-weight:900;color:#000;cursor:pointer">APRI PAGINA GTT FERMATA</button>
+      <div id="gtt-stop-answer" style="font-size:1.25rem;font-weight:800;color:#FFE000;text-align:center;line-height:1.7;padding:8px 4px;min-height:20px;white-space:pre-line"></div>
+      <button id="btn-gtt-leggi" onclick="leggiOrari()" style="display:none;width:100%;padding:18px;background:linear-gradient(135deg,#00E676,#00897B);border:none;border-radius:16px;font-family:'Nunito',sans-serif;font-size:1.3rem;font-weight:900;color:#000;cursor:pointer;margin-top:6px">🔊 LEGGI</button>
 
       <div style="height:1px;background:#333;margin:4px 0"></div>
 
@@ -158,7 +158,7 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
         <div id="gtt-wave-bar"><span></span><span></span><span></span><span></span><span></span></div>
       </button>
       <div id="gtt-answer" style="font-size:.9rem;font-weight:700;color:var(--muted);text-align:center;line-height:1.5;padding:0 4px;min-height:20px"></div>
-      <button id="btn-gtt-realtime" onclick="openGTTRealtime()">ORARI IN TEMPO REALE</button>
+
     </div>
     <div class="bottom-spacer"></div>
   </div>
@@ -206,6 +206,7 @@ let userLon            = null;
 let lastGTTLineNumber  = '';
 // FLAG CRITICO: impedisce doppia chiamata a processGTTVoice
 let gttProcessing      = false;
+let lastVoiceText      = '';
 
 // ═══ INIT ═════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
@@ -654,8 +655,6 @@ function toMin(t) {
 // Lookup fermata GTFS — restituisce { lines, ora, stopName }
 async function fetchGTTStop(stopNum) {
   lastStopNumber = stopNum;
-  const btnOpen = document.getElementById('btn-gtt-open-stop');
-  if (btnOpen) btnOpen.style.display = 'block';
 
   const gtfs = await loadGTFS((msg) => setGTTStopAnswer(msg));
 
@@ -941,6 +940,8 @@ async function processStopNumber(stopNum) {
 
     setGTTStopAnswer(displayText.trim());
     setStatus('Orari pronti' + (result.hasRT ? ' (tempo reale)' : '') + '.', 'active');
+    lastVoiceText = voiceText;
+    document.getElementById('btn-gtt-leggi').style.display = 'block';
     speak(voiceText);
   } catch(e) {
     const msg = 'Errore recupero orari: ' + e.message;
@@ -952,6 +953,14 @@ async function processStopNumber(stopNum) {
 
 function setGTTStopAnswer(text) {
   document.getElementById('gtt-stop-answer').textContent = text;
+  // Nascondi LEGGI durante caricamento
+  if (!text || text.includes('...') || text.includes('Leggo') || text.includes('Cerco') || text.includes('Errore')) {
+    document.getElementById('btn-gtt-leggi').style.display = 'none';
+  }
+}
+
+function leggiOrari() {
+  if (lastVoiceText) speak(lastVoiceText);
 }
 
 function openGTTStopPage() {
@@ -1269,10 +1278,7 @@ async function processGTTVoice() {
     // Estrai numero linea per il link GTT
     const m = clean.match(/\b(?:linea|tram|bus|numero)\s*([A-Z]?\d{1,3}[A-Z]?)\b/i);
     lastGTTLineNumber = m ? m[1] : '';
-    const btnR = document.getElementById('btn-gtt-realtime');
-    if (btnR) btnR.textContent = lastGTTLineNumber ? 'ORARI LINEA ' + lastGTTLineNumber : 'ORARI IN TEMPO REALE';
 
-    // Delay extra per garantire che il TTS parta dopo il rilascio mic su iOS
     speak(clean);
 
   } catch(err) {
