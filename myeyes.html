@@ -479,9 +479,12 @@ let stopVoiceProcessed = false; // Anti-doppia esecuzione
 // Scaricato una sola volta per sessione, estratto in memoria, interrogato
 // localmente: niente proxy instabili, niente scraping, niente HTTP 408.
 
+// URL diretto ufficiale GTT (aggiornato ogni giorno) — transitland.org lo usa come fonte primaria
+const GTFS_ZIP_DIRECT  = 'https://www.gtt.to.it/open_data/gtt_gtfs.zip';
 const GTFS_ZIP_PROXIES = [
-  'https://corsproxy.io/?url=' + encodeURIComponent('http://aperto.comune.torino.it/dataset/feed-gtfs-trasporti-gtt/resource/88035475-b429-40de-ba64-99de232d6327/download/gtfs-gtt-statico.zip'),
-  'https://api.allorigins.win/raw?url=' + encodeURIComponent('http://aperto.comune.torino.it/dataset/feed-gtfs-trasporti-gtt/resource/88035475-b429-40de-ba64-99de232d6327/download/gtfs-gtt-statico.zip')
+  GTFS_ZIP_DIRECT,  // diretto prima — nessun proxy, più veloce
+  'https://corsproxy.io/?url=' + encodeURIComponent(GTFS_ZIP_DIRECT),
+  'https://api.allorigins.win/raw?url=' + encodeURIComponent(GTFS_ZIP_DIRECT)
 ];
 
 let gtfsCache = null; // riempito al primo uso
