@@ -474,110 +474,353 @@ let stopVoiceTranscript = '';
 let lastStopNumber = '';
 let stopVoiceProcessed = false; // Anti-doppia esecuzione
 
-// Scraping orari fermata dal sito GTT tramite allorigins proxy
+// ═══ GTFS STATICO GTT — cache in memoria ════════════════════════════════════
+// Fonte: Feed GTFS GTT su aperTO (Comune di Torino) — licenza CC BY 4.0
+// Scaricato una sola volta per sessione, estratto in memoria, interrogato
+// localmente: niente proxy instabili, niente scraping, niente HTTP 408.
+
+const GTFS_ZIP_PROXIES = [
+  'https://corsproxy.io/?url=' + encodeURIComponent('http://aperto.comune.torino.it/dataset/feed-gtfs-trasporti-gtt/resource/88035475-b429-40de-ba64-99de232d6327/download/gtfs-gtt-statico.zip'),
+  'https://api.allorigins.win/raw?url=' + encodeURIComponent('http://aperto.comune.torino.it/dataset/feed-gtfs-trasporti-gtt/resource/88035475-b429-40de-ba64-99de232d6327/download/gtfs-gtt-statico.zip')
+];
+
+let gtfsCache = null; // riempito al primo uso
+
+// Carica JSZip da CDN se non presente
+async function ensureJSZip() {
+  if (window.JSZip) return;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+
+// Parse CSV semplice (gestisce campi quotati)
+function parseCSV(txt) {
+  const lines = txt.split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  return lines.slice(1).filter(l => l.trim()).map(l => {
+    const vals = []; let cur = '', inQ = false;
+    for (const ch of l) {
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { vals.push(cur); cur = ''; }
+      else cur += ch;
+    }
+    vals.push(cur);
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = (vals[i] || '').replace(/^"|"$/g, '').trim(); });
+    return obj;
+  });
+}
+
+// Scarica e indicizza il GTFS (una sola volta per sessione)
+async function loadGTFS(onProgress) {
+  if (gtfsCache) return gtfsCache;
+  await ensureJSZip();
+
+  onProgress('Scarico orari GTT (solo prima volta, ~5MB)...');
+  let zipData = null;
+  const errors = [];
+  for (const url of GTFS_ZIP_PROXIES) {
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 90000);
+      const res = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (!res.ok) { errors.push('HTTP ' + res.status); continue; }
+      zipData = await res.arrayBuffer();
+      if (zipData.byteLength > 50000) break;
+      errors.push('file troppo piccolo'); zipData = null;
+    } catch(e) { errors.push(e.message); }
+  }
+  if (!zipData) throw new Error('Download GTFS fallito: ' + errors.join('; '));
+
+  onProgress('Estraggo e indicizzio dati GTT...');
+  const zip = await JSZip.loadAsync(zipData);
+
+  async function csv(name) {
+    const f = zip.file(name);
+    return f ? parseCSV(await f.async('string')) : [];
+  }
+
+  const [stopsRaw, tripsRaw, routesRaw, timesRaw, calRaw] = await Promise.all([
+    csv('stops.txt'), csv('trips.txt'), csv('routes.txt'),
+    csv('stop_times.txt'), csv('calendar.txt')
+  ]);
+
+  // routes: route_id → short_name
+  const routes = new Map();
+  for (const r of routesRaw) routes.set(r.route_id, r.route_short_name || r.route_id);
+
+  // calendar: service_id → {days[7], start, end}  (lun=0 … dom=6)
+  const calendar = new Map();
+  for (const c of calRaw) {
+    calendar.set(c.service_id, {
+      days: [c.monday,c.tuesday,c.wednesday,c.thursday,c.friday,c.saturday,c.sunday].map(Number),
+      start: c.start_date, end: c.end_date
+    });
+  }
+
+  // trips: trip_id → {route_id, service_id, headsign}
+  const trips = new Map();
+  for (const t of tripsRaw) trips.set(t.trip_id, { route_id: t.route_id, service_id: t.service_id, headsign: t.trip_headsign || '' });
+
+  // stops: stop_code (numero palina senza zeri iniziali) → stop_id
+  const stopsByCode = new Map();
+  const stopById    = new Map();
+  for (const s of stopsRaw) {
+    stopById.set(s.stop_id, { name: s.stop_name, code: s.stop_code || '' });
+    if (s.stop_code) stopsByCode.set(s.stop_code.replace(/^0+/, ''), s.stop_id);
+  }
+
+  // stop_times: stop_id → [{trip_id, arrival}]
+  const stopTimes = new Map();
+  for (const st of timesRaw) {
+    if (!stopTimes.has(st.stop_id)) stopTimes.set(st.stop_id, []);
+    stopTimes.get(st.stop_id).push({ trip_id: st.trip_id, arrival: st.arrival_time || st.departure_time });
+  }
+
+  gtfsCache = { stopsByCode, stopById, trips, routes, calendar, stopTimes };
+  onProgress('Dati GTT pronti!');
+  return gtfsCache;
+}
+
+// Controlla se un service_id è attivo oggi
+function isServiceActiveToday(cal) {
+  if (!cal) return true;
+  const d = new Date();
+  const ds = d.getFullYear().toString() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+  if (ds < cal.start || ds > cal.end) return false;
+  const dow = d.getDay(); // 0=dom
+  const idx = dow === 0 ? 6 : dow - 1; // lun=0…dom=6
+  return cal.days[idx] === 1;
+}
+
+// "HH:MM:SS" → minuti da mezzanotte (GTFS supporta valori >24h per corse notturne)
+function toMin(t) {
+  if (!t) return 9999;
+  const p = t.split(':');
+  return parseInt(p[0]) * 60 + parseInt(p[1] || 0);
+}
+
+// Lookup fermata GTFS — restituisce { lines, ora, stopName }
 async function fetchGTTStop(stopNum) {
   lastStopNumber = stopNum;
   const btnOpen = document.getElementById('btn-gtt-open-stop');
   if (btnOpen) btnOpen.style.display = 'block';
 
-  // URL primaria: /percorari/arrivi?palina=NUMERO (tempo reale, senza ora)
-  // URL secondaria con ora attuale per gli orari programmati
-  const now = new Date();
-  const hh  = String(now.getHours()).padStart(2, '0');
-  const mm  = String(now.getMinutes()).padStart(2, '0');
-  const oraAdesso = hh + '%3A' + mm; // HH%3AMM (: codificato)
+  const gtfs = await loadGTFS((msg) => setGTTStopAnswer(msg));
 
-  // GTT usa due endpoint:
-  // 1. /percorari/arrivi?palina=N        → arrivi in tempo reale (preferito)
-  // 2. /percorari/urbano?view=palina&bacino=U&palina=N&ora=HH:MM&realtime=true  → con orari programmati
-  const gttUrlRealtime  = 'https://www.gtt.to.it/cms/percorari/arrivi?palina=' + encodeURIComponent(stopNum);
-  const gttUrlScheduled = 'https://www.gtt.to.it/cms/percorari/urbano?view=palina&bacino=U&palina='
-    + encodeURIComponent(stopNum) + '&ora=' + oraAdesso + '&realtime=true';
+  const now  = new Date();
+  const hh   = String(now.getHours()).padStart(2,'0');
+  const mm   = String(now.getMinutes()).padStart(2,'0');
+  const ora  = hh + ':' + mm;
+  const nowMin = parseInt(hh) * 60 + parseInt(mm);
 
-  // Prova prima l'endpoint arrivi (tempo reale)
-  let html = '';
-  const errors = [];
+  const cleanCode = String(stopNum).replace(/^0+/, '');
+  const stopId = gtfs.stopsByCode.get(cleanCode);
+  if (!stopId) throw new Error('Fermata ' + stopNum + ' non trovata nel database GTT.');
 
-  // Lista proxy CORS ordinata per affidabilità (fallback automatico)
-  const proxyList = [
-    {
-      name: 'corsproxy.io',
-      build: (u) => 'https://corsproxy.io/?' + encodeURIComponent(u),
-      parse: async (res) => await res.text()
-    },
-    {
-      name: 'allorigins',
-      build: (u) => 'https://api.allorigins.win/get?url=' + encodeURIComponent(u),
-      parse: async (res) => { const d = await res.json(); return d.contents || ''; }
-    },
-    {
-      name: 'cors.sh',
-      build: (u) => 'https://proxy.cors.sh/' + u,
-      parse: async (res) => await res.text()
+  const stopInfo = gtfs.stopById.get(stopId) || {};
+  const times    = gtfs.stopTimes.get(stopId) || [];
+
+  // Carica dati RT (silenzioso se non disponibile)
+  let rtMap = new Map();
+  try { rtMap = await loadGTFSRT(); } catch(e) {}
+  const rtForStop = rtMap.get(stopId) || [];
+
+  // Funzione helper: raccogli corse con overlay RT
+  function collectInWindow(minFrom, minTo) {
+    const found = [];
+    for (const st of times) {
+      const arrMin = toMin(st.arrival);
+      if (arrMin < minFrom || arrMin > minTo) continue;
+      const trip = gtfs.trips.get(st.trip_id);
+      if (!trip) continue;
+      if (!isServiceActiveToday(gtfs.calendar.get(trip.service_id))) continue;
+
+      // Cerca aggiornamento RT per questa corsa
+      const rtEntry = rtForStop.find(r => r.trip_id === st.trip_id);
+      const delaySec    = rtEntry ? rtEntry.delay_sec    : null;
+      const realtimeMin = rtEntry ? rtEntry.realtime_min : null;
+
+      // Orario effettivo: usa timestamp RT se disponibile, altrimenti aggiunge delay
+      let effectiveMin = arrMin;
+      let effectiveStr = st.arrival.substring(0, 5);
+      if (realtimeMin !== null) {
+        effectiveMin = realtimeMin;
+        effectiveStr = String(Math.floor(realtimeMin/60)).padStart(2,'0') + ':' + String(realtimeMin%60).padStart(2,'0');
+      } else if (delaySec !== null) {
+        effectiveMin = arrMin + Math.round(delaySec / 60);
+        const eh = Math.floor(effectiveMin/60) % 24;
+        const em = effectiveMin % 60;
+        effectiveStr = String(eh).padStart(2,'0') + ':' + String(em).padStart(2,'0');
+      }
+
+      found.push({
+        line: gtfs.routes.get(trip.route_id) || '?',
+        dest: trip.headsign,
+        arrMin: effectiveMin,
+        arrival: effectiveStr,
+        scheduled: st.arrival.substring(0, 5),
+        delaySec,
+        waitMin: effectiveMin - nowMin
+      });
     }
-  ];
-
-  outer:
-  for (const gttUrl of [gttUrlRealtime, gttUrlScheduled]) {
-    for (const proxy of proxyList) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
-        const proxyUrl = proxy.build(gttUrl);
-        const res = await fetch(proxyUrl, {signal: controller.signal});
-        clearTimeout(timeoutId);
-        if (!res.ok) { errors.push(proxy.name + ':HTTP' + res.status); continue; }
-        const candidate = await proxy.parse(res);
-        if (candidate && candidate.length > 200) { html = candidate; break outer; }
-        errors.push(proxy.name + ':risposta corta');
-      } catch(e) { errors.push(proxy.name + ':' + e.message); }
+    found.sort((a, b) => a.arrMin - b.arrMin);
+    const byLine = new Map();
+    for (const u of found) {
+      const key = u.line + '|' + u.dest;
+      if (!byLine.has(key)) byLine.set(key, { line: u.line, dest: u.dest, passages: [] });
+      byLine.get(key).passages.push({ time: u.arrival, scheduled: u.scheduled, delaySec: u.delaySec, waitMin: u.waitMin });
     }
+    return [...byLine.values()].map(l => ({ ...l, passages: l.passages.slice(0, 5) }));
   }
 
-  if (!html || html.length < 200) {
-    throw new Error('Nessuna risposta dal sito GTT. ' + errors.join('; '));
-  }
+  // Prima finestra: prossimi 60 min; se vuota allarga a 120 min
+  let lines = collectInWindow(nowMin, nowMin + 60);
+  if (lines.length === 0) lines = collectInWindow(nowMin, nowMin + 120);
 
-  // Parse HTML GTT: estrai linee e orari
-  const lines = [];
-  const textContent = html.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ');
+  return { lines, ora, stopName: stopInfo.name || ('Fermata ' + stopNum), hasRT: rtForStop.length > 0 };
+}
 
-  // Pattern 1: formato "Linea X / >>> DEST ORARIO: HH:MM HH:MM"
-  const linePattern = /Linea\s+([\w\/]+)\s*[\/»>]+\s*(.*?)\s*ORARIO:\s*((?:\d{2}:\d{2}[\*\s]*)+)/gi;
-  let match;
-  while ((match = linePattern.exec(textContent)) !== null) {
-    const lineNum = match[1].trim();
-    const dest    = match[2].replace(/[*×NB:]/g, '').trim().substring(0, 50);
-    const times   = match[3].replace(/\*/g, '').trim().split(/\s+/).filter(t => /^\d{2}:\d{2}$/.test(t)).slice(0, 5);
-    if (times.length > 0) lines.push({ line: lineNum, dest, times });
-  }
+// ═══ GTFS-RT GTT — tempo reale con decoder protobuf inline ══════════════════
+// Endpoint pubblici GTT (nessuna autenticazione richiesta):
+//   trip_updates  → ritardi e orari effettivi per fermata/corsa
+//   vehicle_pos   → posizioni GPS mezzi
+// Il decoder protobuf è implementato inline (no dipendenze npm/cdn pesanti).
 
-  // Pattern 2: formato "N >>> DEST ORARIO: HH:MM" (usato nell'endpoint arrivi)
-  if (lines.length === 0) {
-    const arrPattern = /(\d{1,3}[A-Z]?)\s*(?:>>>|>>|→)\s*([^\d]+?)\s*ORARIO:\s*((?:\d{2}:\d{2}[\*\s]*)+)/gi;
-    while ((match = arrPattern.exec(textContent)) !== null) {
-      const lineNum = match[1].trim();
-      const dest    = match[2].replace(/[*×]/g, '').trim().substring(0, 50);
-      const times   = match[3].replace(/\*/g, '').trim().split(/\s+/).filter(t => /^\d{2}:\d{2}$/.test(t)).slice(0, 5);
-      if (times.length > 0) lines.push({ line: lineNum, dest, times });
+const GTFSRT_TRIP_URL = 'https://percorsieorari.gtt.to.it/das_gtt/TripUpdate.aspx';
+const GTFSRT_PROXIES  = [
+  (u) => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+  (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u)
+];
+
+// Cache RT: si azzera ogni 30 secondi
+let gtfsRtCache = null;
+let gtfsRtTimestamp = 0;
+const GTFSRT_TTL = 30000; // 30s
+
+// ── Micro decoder protobuf (solo le varint + len-delimited che servono a GTFS-RT)
+// Decodifica solo i campi che ci interessano: stop_id, arrival.delay, arrival.time, trip_id
+const PB = {
+  readVarint(buf, pos) {
+    let val = 0, shift = 0, b;
+    do { b = buf[pos++]; val |= (b & 0x7F) << shift; shift += 7; } while (b & 0x80);
+    return { val, pos };
+  },
+  readFields(buf, start, end) {
+    const fields = [];
+    let pos = start;
+    while (pos < end) {
+      const tag = PB.readVarint(buf, pos); pos = tag.pos;
+      const fieldNum = tag.val >>> 3;
+      const wireType = tag.val & 0x7;
+      if (wireType === 0) {       // varint
+        const v = PB.readVarint(buf, pos); pos = v.pos;
+        fields.push({ field: fieldNum, type: 'varint', val: v.val });
+      } else if (wireType === 2) { // len-delimited
+        const lenV = PB.readVarint(buf, pos); pos = lenV.pos;
+        const bytes = buf.slice(pos, pos + lenV.val); pos += lenV.val;
+        fields.push({ field: fieldNum, type: 'bytes', val: bytes });
+      } else if (wireType === 1) { // 64-bit fixed
+        pos += 8;
+      } else if (wireType === 5) { // 32-bit fixed
+        pos += 4;
+      } else break; // sconosciuto, fermati
     }
-  }
+    return fields;
+  },
+  str(bytes) { try { return new TextDecoder().decode(bytes); } catch(e) { return ''; } },
+  sint32(v) { return (v >>> 1) ^ -(v & 1); } // zigzag decode per i delay (signed)
+};
 
-  // Pattern 3: qualsiasi coppia "NNN → testo ... HH:MM" (fallback generico)
-  if (lines.length === 0) {
-    const genericPattern = /\b(\d{1,3}[A-Z]?)\b[^0-9]{3,60}?(\d{2}:\d{2})/gi;
-    const seen = new Set();
-    while ((match = genericPattern.exec(textContent)) !== null) {
-      const key = match[1];
-      if (!seen.has(key)) {
-        seen.add(key);
-        lines.push({ line: key, dest: '', times: [match[2]] });
+// Parsa il binario GTFS-RT e restituisce Map<stop_id → [{trip_id, delay_sec, realtime_min}]>
+function parseGTFSRT(buffer) {
+  const buf  = new Uint8Array(buffer);
+  const rtMap = new Map(); // stop_id → [{trip_id, delay_sec, realtime_min}]
+
+  // FeedMessage (campo 2 = entity[])
+  const msgFields = PB.readFields(buf, 0, buf.length);
+  for (const f of msgFields) {
+    if (f.field !== 2 || f.type !== 'bytes') continue; // entity
+
+    // FeedEntity: campo 4 = trip_update
+    const entityFields = PB.readFields(f.val, 0, f.val.length);
+    let tripUpdateBytes = null;
+    for (const ef of entityFields) {
+      if (ef.field === 4 && ef.type === 'bytes') { tripUpdateBytes = ef.val; break; }
+    }
+    if (!tripUpdateBytes) continue;
+
+    // TripUpdate: campo 1=trip_descriptor, campo 2=stop_time_update[]
+    const tuFields = PB.readFields(tripUpdateBytes, 0, tripUpdateBytes.length);
+    let tripId = '';
+    const stopUpdates = [];
+    for (const tuf of tuFields) {
+      if (tuf.field === 1 && tuf.type === 'bytes') {
+        // TripDescriptor: campo 1=trip_id
+        const tdFields = PB.readFields(tuf.val, 0, tuf.val.length);
+        for (const td of tdFields) {
+          if (td.field === 1 && td.type === 'bytes') { tripId = PB.str(td.val); break; }
+        }
+      }
+      if (tuf.field === 2 && tuf.type === 'bytes') {
+        // StopTimeUpdate: campo 4=stop_id, campo 2=arrival{campo 2=delay, campo 1=time}
+        const stuFields = PB.readFields(tuf.val, 0, tuf.val.length);
+        let stopId = '', delaySec = 0, realtimeTs = 0;
+        for (const stu of stuFields) {
+          if (stu.field === 4 && stu.type === 'bytes') stopId = PB.str(stu.val);
+          if (stu.field === 2 && stu.type === 'bytes') { // arrival
+            const arrFields = PB.readFields(stu.val, 0, stu.val.length);
+            for (const ar of arrFields) {
+              if (ar.field === 2 && ar.type === 'varint') delaySec = PB.sint32(ar.val);
+              if (ar.field === 1 && ar.type === 'varint') realtimeTs = ar.val;
+            }
+          }
+        }
+        if (stopId) stopUpdates.push({ stopId, delaySec, realtimeTs });
       }
     }
+    // Aggiungi alla mappa
+    for (const su of stopUpdates) {
+      let realtimeMin = null;
+      if (su.realtimeTs) {
+        const d = new Date(su.realtimeTs * 1000);
+        realtimeMin = d.getHours() * 60 + d.getMinutes();
+      }
+      if (!rtMap.has(su.stopId)) rtMap.set(su.stopId, []);
+      rtMap.get(su.stopId).push({ trip_id: tripId, delay_sec: su.delaySec, realtime_min: realtimeMin });
+    }
   }
-
-  return { lines, ora: hh + ':' + mm, rawLen: html.length };
+  return rtMap;
 }
+
+// Scarica e parsa il feed RT (con cache 30s)
+async function loadGTFSRT() {
+  if (gtfsRtCache && (Date.now() - gtfsRtTimestamp) < GTFSRT_TTL) return gtfsRtCache;
+  const errors = [];
+  for (const proxyFn of GTFSRT_PROXIES) {
+    try {
+      const ctrl = new AbortController();
+      const tid  = setTimeout(() => ctrl.abort(), 15000);
+      const res  = await fetch(proxyFn(GTFSRT_TRIP_URL), { signal: ctrl.signal });
+      clearTimeout(tid);
+      if (!res.ok) { errors.push('HTTP ' + res.status); continue; }
+      const buf = await res.arrayBuffer();
+      if (buf.byteLength < 10) { errors.push('risposta vuota'); continue; }
+      gtfsRtCache     = parseGTFSRT(buf);
+      gtfsRtTimestamp = Date.now();
+      return gtfsRtCache;
+    } catch(e) { errors.push(e.message); }
+  }
+  console.warn('GTFS-RT non disponibile:', errors.join('; '));
+  return new Map(); // fallback silenzioso: usa solo orari statici
+}
+
 
 // Leggi numero fermata da foto
 async function readStopFromPhoto() {
@@ -616,16 +859,40 @@ async function processStopNumber(stopNum) {
       speak(msg);
       return;
     }
-    // Costruisci risposta vocale e visiva
-    let voiceText = 'Fermata ' + stopNum + ', ore ' + result.ora + '. ';
-    let displayText = '📍 FERMATA ' + stopNum + '  ⏰ ' + result.ora + '\n';
+    // Costruisci risposta vocale e visiva (con dati RT se disponibili)
+    const nomeStop = result.stopName || ('Fermata ' + stopNum);
+    const rtBadge  = result.hasRT ? ' 🟢 TEMPO REALE' : ' 🔵 ORARI PROGRAMMATI';
+    let voiceText  = nomeStop + ', ore ' + result.ora + '. ';
+    let displayText = '📍 ' + nomeStop + '  ⏰ ' + result.ora + rtBadge + '\n';
+
     for (const l of result.lines) {
-      const timesStr = l.times.join(', ');
-      voiceText += 'Linea ' + l.line + (l.dest ? ' per ' + l.dest : '') + ': ' + timesStr + '. ';
-      displayText += '🚌 ' + l.line + (l.dest ? ' → ' + l.dest : '') + '\n⏱ ' + timesStr + '\n';
+      // Ogni passage ha {time, scheduled, delaySec, waitMin}
+      let lineVoice = 'Linea ' + l.line + (l.dest ? ' per ' + l.dest : '') + ': ';
+      let lineDisplay = '🚌 ' + l.line + (l.dest ? ' → ' + l.dest : '') + '\n';
+
+      const passageStrs = [];
+      const voiceStrs   = [];
+      for (const p of l.passages) {
+        let delayLabel = '';
+        let voiceDelay = '';
+        if (p.delaySec !== null) {
+          const delMin = Math.round(p.delaySec / 60);
+          if (delMin > 0)       { delayLabel = ' (+' + delMin + 'min)'; voiceDelay = ', ritardo ' + delMin + ' minuti'; }
+          else if (delMin < 0)  { delayLabel = ' (' + delMin + 'min)';  voiceDelay = ', anticipo ' + Math.abs(delMin) + ' minuti'; }
+          else                  { delayLabel = ' (in orario)'; }
+        }
+        const waitStr = p.waitMin >= 0 ? 'tra ' + p.waitMin + ' min' : '';
+        passageStrs.push(p.time + delayLabel + (waitStr ? '  ' + waitStr : ''));
+        voiceStrs.push(p.time + voiceDelay);
+      }
+      lineDisplay += '⏱ ' + passageStrs.join('   ') + '\n';
+      lineVoice   += voiceStrs.join(', ') + '. ';
+      displayText += lineDisplay;
+      voiceText   += lineVoice;
     }
+
     setGTTStopAnswer(displayText.trim());
-    setStatus('Orari pronti.', 'active');
+    setStatus('Orari pronti' + (result.hasRT ? ' (tempo reale)' : '') + '.', 'active');
     speak(voiceText);
   } catch(e) {
     const msg = 'Errore recupero orari: ' + e.message;
