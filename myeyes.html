@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MyEYES">
@@ -31,17 +31,17 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
 .row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .btn{width:100%;padding:0;border:none;border-radius:var(--r);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:transform .12s,filter .12s;font-family:'Nunito',sans-serif;position:relative;overflow:hidden}
 .btn:active{transform:scale(.95);filter:brightness(.85)}
-.btn-label{font-size:2rem;font-weight:900;letter-spacing:1px;line-height:1;color:#fff}
+.btn-label{font-size:2.4rem;font-weight:900;letter-spacing:1px;line-height:1;color:#fff}
 .btn-sub{font-size:.9rem;font-weight:700;color:rgba(255,255,255,.75);margin-top:4px}
 #btn-camera{background:linear-gradient(160deg,#FFF500,#FFB800);box-shadow:0 8px 36px rgba(255,220,0,.8);padding:30px 10px}
-#btn-camera .btn-label{color:#000;font-size:2.4rem;letter-spacing:2px}
+#btn-camera .btn-label{color:#000;font-size:2.8rem;letter-spacing:2px}
 #btn-camera .btn-sub{color:rgba(0,0,0,.65)}
 #btn-play{background:linear-gradient(135deg,#00E5FF,#0077FF);box-shadow:0 6px 28px rgba(0,200,255,.7);padding:30px 10px}
 #btn-play.recording{background:linear-gradient(135deg,#FF2222,#CC0000);box-shadow:0 6px 28px rgba(255,30,30,.7)}
 #btn-gallery{background:linear-gradient(135deg,#FF7A00,#B34400);box-shadow:0 6px 28px rgba(255,100,0,.7);padding:26px 10px}
 #btn-describe{background:linear-gradient(135deg,#00FF66,#00AA44);box-shadow:0 6px 28px rgba(0,255,90,.6);padding:26px 10px}
-#btn-describe .btn-label{color:#000;font-size:1.5rem}
-#btn-gallery .btn-label{font-size:1.5rem}
+#btn-describe .btn-label{color:#000;font-size:2rem}
+#btn-gallery .btn-label{font-size:2rem}
 #btn-describe .btn-sub{color:rgba(0,0,0,.65)}
 #btn-bus{background:linear-gradient(135deg,#CC00FF,#7700BB);box-shadow:0 6px 28px rgba(180,0,255,.7);padding:26px 10px}
 #btn-exit{background:linear-gradient(135deg,#FF3333,#CC0000);box-shadow:0 6px 28px rgba(255,30,30,.5);padding:26px 10px}
@@ -60,7 +60,6 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
 #btn-gtt-location:active{filter:brightness(.85);transform:scale(.97)}
 #btn-gtt-mic{width:100%;padding:24px 10px;background:linear-gradient(135deg,#00E5FF,#0077FF);box-shadow:0 6px 28px rgba(0,200,255,.7);border:none;border-radius:var(--r);font-family:'Nunito',sans-serif;font-size:2rem;font-weight:900;color:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;transition:background .2s,box-shadow .2s}
 #btn-gtt-mic.recording{background:linear-gradient(135deg,#FF2222,#CC0000);box-shadow:0 6px 28px rgba(255,30,30,.7)}
-#gtt-mic-sub{font-size:.9rem;font-weight:700;color:rgba(255,255,255,.8)}
 .gtt-section-title{font-size:.8rem;font-weight:900;color:#666;letter-spacing:2px;text-transform:uppercase;text-align:center}
 .gtt-subsection{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 #btn-gtt-voce-fermata.recording{background:linear-gradient(135deg,#FF2222,#CC0000) !important;box-shadow:0 6px 28px rgba(255,30,30,.7)}
@@ -103,59 +102,55 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
     </div>
     <div class="row-2">
       <button class="btn" id="btn-camera" onclick="openCamera()">
-        <span class="btn-label">FOTO</span><span class="btn-sub">Fotocamera</span>
+        <span class="btn-label">FOTO</span>
       </button>
       <button class="btn" id="btn-play" onclick="toggleRecording()">
         <span class="btn-label" id="play-label">CHIEDI</span>
-        <span class="btn-sub" id="play-sub">Parla</span>
         <div class="wave-bar" id="wave-bar"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
       </button>
     </div>
     <div class="row-2">
       <button class="btn" id="btn-gallery" onclick="openGallery()">
-        <span class="btn-label">GALLERIA</span><span class="btn-sub">Scegli foto</span>
+        <span class="btn-label">GALLERIA</span>
       </button>
       <button class="btn" id="btn-describe" onclick="describeScene()">
-        <span class="btn-label">ANALISI AI</span><span class="btn-sub">Foto</span>
+        <span class="btn-label">ANALISI AI</span>
       </button>
     </div>
     <div class="row-2">
       <button class="btn" id="btn-bus" onclick="toggleGTT()">
-        <span class="btn-label">BUS</span><span class="btn-sub">GTT Torino</span>
+        <span class="btn-label">BUS</span>
       </button>
       <button class="btn" id="btn-exit" onclick="exitApp()">
-        <span class="btn-label">ESCI</span><span class="btn-sub">Chiudi</span>
+        <span class="btn-label">ESCI</span>
       </button>
     </div>
     <div id="voice-transcript">Premi CHIEDI e parla. Premi di nuovo per fermare.</div>
     <div id="gtt-panel">
-      <div class="gtt-title">🚌 GTT TORINO</div>
+      <div class="gtt-title">GTT TORINO</div>
 
       <!-- SEZIONE 1: ORARI FERMATA (funzione principale) -->
       <div class="gtt-section-title">ORARI ALLA FERMATA</div>
       <div class="gtt-subsection">
         <button id="btn-gtt-foto-fermata" class="btn" style="background:linear-gradient(135deg,#FFF500,#FFB800);padding:18px 10px;margin-bottom:0" onclick="readStopFromPhoto()">
-          <span class="btn-label" style="color:#000;font-size:1.4rem">📷 LEGGI FOTO</span>
-          <span class="btn-sub" style="color:rgba(0,0,0,.65)">Fotografa il numero fermata</span>
+          <span class="btn-label" style="color:#000;font-size:1.6rem">LEGGI FOTO</span>
         </button>
         <button id="btn-gtt-voce-fermata" class="btn" style="background:linear-gradient(135deg,#00E5FF,#0077FF);padding:18px 10px;margin-bottom:0" onclick="toggleStopVoice()">
-          <span id="gtt-stop-label" class="btn-label" style="font-size:1.4rem">🎤 DI' FERMATA</span>
-          <span id="gtt-stop-sub" class="btn-sub">Es: "fermata 1234"</span>
+          <span id="gtt-stop-label" class="btn-label" style="font-size:1.6rem">DI' FERMATA</span>
           <div id="gtt-stop-wave" class="wave-bar"><span></span><span></span><span></span><span></span><span></span></div>
         </button>
       </div>
       <div id="gtt-stop-answer" style="font-size:1.25rem;font-weight:800;color:#FFE000;text-align:center;line-height:1.7;padding:8px 4px;min-height:20px;white-space:pre-line"></div>
-      <button id="btn-gtt-leggi" onclick="leggiOrari()" style="display:none;width:100%;padding:18px;background:linear-gradient(135deg,#00E676,#00897B);border:none;border-radius:16px;font-family:'Nunito',sans-serif;font-size:1.3rem;font-weight:900;color:#000;cursor:pointer;margin-top:6px">🔊 LEGGI</button>
+      <button id="btn-gtt-leggi" onclick="leggiOrari()" style="display:none;width:100%;padding:18px;background:linear-gradient(135deg,#00E676,#00897B);border:none;border-radius:16px;font-family:'Nunito',sans-serif;font-size:1.6rem;font-weight:900;color:#000;cursor:pointer;margin-top:6px">LEGGI</button>
 
       <div style="height:1px;background:#333;margin:4px 0"></div>
 
       <!-- SEZIONE 2: DOVE DEVO ANDARE (funzione secondaria) -->
       <div class="gtt-section-title">DOVE DEVO ANDARE?</div>
-      <div id="gtt-coords" style="font-size:.8rem;font-weight:700;color:#888;text-align:center">Prima rileva la posizione.</div>
-      <button id="btn-gtt-location" onclick="getUserLocation()">📍 RILEVA POSIZIONE</button>
+      <div id="gtt-coords" style="font-size:.9rem;font-weight:700;color:#aaa;text-align:center">Prima rileva la posizione.</div>
+      <button id="btn-gtt-location" onclick="getUserLocation()">RILEVA POSIZIONE</button>
       <button id="btn-gtt-mic" onclick="toggleGTTVoice()">
-        <span id="gtt-mic-label">🎤 CHIEDI</span>
-        <span id="gtt-mic-sub">Dove vuoi andare?</span>
+        <span id="gtt-mic-label">CHIEDI</span>
         <div id="gtt-wave-bar"><span></span><span></span><span></span><span></span><span></span></div>
       </button>
       <div id="gtt-answer" style="font-size:.9rem;font-weight:700;color:var(--muted);text-align:center;line-height:1.5;padding:0 4px;min-height:20px"></div>
@@ -331,8 +326,6 @@ function startRecording() {
   setStatus('In ascolto...', 'listening');
   document.getElementById('wave-bar').classList.add('show');
   document.getElementById('btn-play').classList.add('recording');
-  document.getElementById('play-label').textContent = 'STOP';
-  document.getElementById('play-sub').textContent = 'Tocca per fermare';
   recognition = new SR();
   recognition.lang = 'it-IT';
   recognition.continuous = true;
@@ -379,7 +372,6 @@ function resetVoiceUI() {
   document.getElementById('wave-bar').classList.remove('show');
   document.getElementById('btn-play').classList.remove('recording');
   document.getElementById('play-label').textContent = 'CHIEDI';
-  document.getElementById('play-sub').textContent = 'Parla';
 }
 
 async function processVoiceInput() {
@@ -987,8 +979,7 @@ function startStopVoice() {
   isStopVoiceRec = true;
   const btn = document.getElementById('btn-gtt-voce-fermata');
   btn.classList.add('recording');
-  document.getElementById('gtt-stop-label').textContent = '⏹ STOP';
-  document.getElementById('gtt-stop-sub').textContent = 'In ascolto...';
+  document.getElementById('gtt-stop-label').textContent = 'STOP';
   document.getElementById('gtt-stop-wave').classList.add('show');
   document.getElementById('gtt-stop-answer').textContent = 'In ascolto... Di\' il numero fermata.';
   stopVoiceRec = new SR();
@@ -1032,9 +1023,9 @@ function resetStopVoiceUI() {
   const btn = document.getElementById('btn-gtt-voce-fermata');
   if (btn) btn.classList.remove('recording');
   const lbl = document.getElementById('gtt-stop-label');
-  if (lbl) lbl.textContent = '🎤 DI\' FERMATA';
+  if (lbl) lbl.textContent = 'DI\' FERMATA';
   const sub = document.getElementById('gtt-stop-sub');
-  if (sub) sub.textContent = 'Es: "fermata 1234"';
+  if (sub) sub.textContent = '';
   const wave = document.getElementById('gtt-stop-wave');
   if (wave) wave.classList.remove('show');
 }
@@ -1142,7 +1133,6 @@ function startGTTVoice() {
   isGttRecording = true;
   document.getElementById('btn-gtt-mic').classList.add('recording');
   document.getElementById('gtt-mic-label').textContent = 'STOP';
-  document.getElementById('gtt-mic-sub').textContent   = 'Tocca per fermare';
   document.getElementById('gtt-wave-bar').classList.add('show');
   document.getElementById('gtt-answer').textContent    = 'In ascolto...';
   gttRecognition = new SR();
@@ -1206,7 +1196,6 @@ function triggerGTTProcess() {
 function resetGTTVoiceUI() {
   document.getElementById('btn-gtt-mic').classList.remove('recording');
   document.getElementById('gtt-mic-label').textContent = 'CHIEDI';
-  document.getElementById('gtt-mic-sub').textContent   = 'Dove vuoi andare?';
   document.getElementById('gtt-wave-bar').classList.remove('show');
 }
 
