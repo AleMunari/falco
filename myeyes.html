@@ -31,20 +31,20 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
 .row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .btn{width:100%;padding:0;border:none;border-radius:var(--r);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:transform .12s,filter .12s;font-family:'Nunito',sans-serif;position:relative;overflow:hidden}
 .btn:active{transform:scale(.95);filter:brightness(.85)}
-.btn-label{font-size:3.2rem;font-weight:900;letter-spacing:1px;line-height:1;color:#fff}
+.btn-label{font-size:clamp(1.4rem,9vw,2.2rem);font-weight:900;letter-spacing:0px;line-height:1;color:#fff;white-space:nowrap}
 
-#btn-camera{background:linear-gradient(160deg,#FFF500,#FFB800);box-shadow:0 8px 36px rgba(255,220,0,.8);padding:40px 10px}
-#btn-camera .btn-label{color:#000;font-size:3.4rem;letter-spacing:2px}
+#btn-camera{background:linear-gradient(160deg,#FFF500,#FFB800);box-shadow:0 8px 36px rgba(255,220,0,.8);padding:28px 8px}
+#btn-camera .btn-label{color:#000;font-size:clamp(1.6rem,10vw,2.4rem);letter-spacing:1px}
 
-#btn-play{background:linear-gradient(135deg,#00E5FF,#0077FF);box-shadow:0 6px 28px rgba(0,200,255,.7);padding:40px 10px}
+#btn-play{background:linear-gradient(135deg,#00E5FF,#0077FF);box-shadow:0 6px 28px rgba(0,200,255,.7);padding:28px 8px}
 #btn-play.recording{background:linear-gradient(135deg,#FF2222,#CC0000);box-shadow:0 6px 28px rgba(255,30,30,.7)}
-#btn-gallery{background:linear-gradient(135deg,#FF7A00,#B34400);box-shadow:0 6px 28px rgba(255,100,0,.7);padding:36px 10px}
-#btn-describe{background:linear-gradient(135deg,#00FF66,#00AA44);box-shadow:0 6px 28px rgba(0,255,90,.6);padding:36px 10px}
-#btn-describe .btn-label{color:#000;font-size:2.8rem}
-#btn-gallery .btn-label{font-size:2.8rem}
+#btn-gallery{background:linear-gradient(135deg,#FF7A00,#B34400);box-shadow:0 6px 28px rgba(255,100,0,.7);padding:24px 8px}
+#btn-describe{background:linear-gradient(135deg,#00FF66,#00AA44);box-shadow:0 6px 28px rgba(0,255,90,.6);padding:24px 8px}
+#btn-describe .btn-label{color:#000;font-size:clamp(1.1rem,7vw,1.8rem)}
+#btn-gallery .btn-label{font-size:clamp(1.1rem,7.5vw,1.9rem)}
 
-#btn-bus{background:linear-gradient(135deg,#CC00FF,#7700BB);box-shadow:0 6px 28px rgba(180,0,255,.7);padding:36px 10px}
-#btn-exit{background:linear-gradient(135deg,#FF3333,#CC0000);box-shadow:0 6px 28px rgba(255,30,30,.5);padding:36px 10px}
+#btn-bus{background:linear-gradient(135deg,#CC00FF,#7700BB);box-shadow:0 6px 28px rgba(180,0,255,.7);padding:24px 8px}
+#btn-exit{background:linear-gradient(135deg,#FF3333,#CC0000);box-shadow:0 6px 28px rgba(255,30,30,.5);padding:24px 8px}
 .wave-bar{display:none;align-items:center;justify-content:center;gap:4px;height:22px;margin-top:5px}
 .wave-bar.show{display:flex}
 .wave-bar span,.wave-bar-inner span{width:4px;background:#fff;border-radius:3px;animation:wave .7s ease-in-out infinite}
@@ -70,7 +70,7 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
 #gtt-wave-bar span:nth-child(1){height:5px;animation-delay:0s}#gtt-wave-bar span:nth-child(2){height:14px;animation-delay:.1s}#gtt-wave-bar span:nth-child(3){height:20px;animation-delay:.2s}#gtt-wave-bar span:nth-child(4){height:10px;animation-delay:.3s}#gtt-wave-bar span:nth-child(5){height:16px;animation-delay:.15s}
 #gtt-answer{font-size:.9rem;font-weight:700;color:var(--muted);text-align:center;line-height:1.5;padding:0 4px;min-height:20px}
 #btn-gtt-realtime{width:100%;padding:16px;background:linear-gradient(135deg,#FFB800,#FF7A00);border:none;border-radius:16px;font-family:'Nunito',sans-serif;font-size:1.1rem;font-weight:900;color:#000;cursor:pointer}
-#settings-fab{position:fixed;bottom:max(18px,env(safe-area-inset-bottom));right:16px;width:42px;height:42px;background:var(--yellow);border:none;border-radius:12px;color:#000;font-size:1.2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:200;box-shadow:0 4px 16px rgba(255,220,0,.6)}
+#settings-fab{width:36px;height:36px;background:var(--yellow);border:none;border-radius:10px;color:#000;font-size:1.1rem;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;box-shadow:0 2px 8px rgba(255,220,0,.5)}
 #settings-overlay{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.8);align-items:flex-end}
 #settings-overlay.open{display:flex}
 .settings-sheet{width:100%;background:var(--card);border-radius:24px 24px 0 0;padding:22px 22px max(22px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px}
@@ -92,6 +92,7 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
 <body>
 <div id="app">
   <div id="status-bar">
+    <button id="settings-fab" onclick="openSettings()">&#9881;</button>
     <div id="status-dot"></div>
     <div id="status-text">Pronto.</div>
     <button id="btn-stop-voice" onclick="stopVoice()">STOP VOCE</button>
@@ -168,7 +169,6 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
   </div>
 </div>
 
-<button id="settings-fab" onclick="openSettings()">&#9881;</button>
 
 <div id="settings-overlay" onclick="closeSettingsIfBg(event)">
   <div class="settings-sheet">
@@ -340,7 +340,6 @@ function startRecording() {
   document.getElementById('wave-bar').classList.add('show');
   document.getElementById('btn-play').classList.add('recording');
   document.getElementById('play-label').textContent = 'STOP';
-  document.getElementById('play-sub').textContent = 'Tocca per fermare';
   recognition = new SR();
   recognition.lang = 'it-IT';
   recognition.continuous = true;
@@ -361,7 +360,10 @@ function startRecording() {
     setStatus(e.error === 'not-allowed' ? 'Permesso negato.' : 'Errore: ' + e.error, 'error');
   };
   recognition.onend = () => {
-    if (isRecording) { try { recognition.start(); } catch(err) { isRecording = false; resetVoiceUI(); processVoiceInput(); } }
+    if (isRecording && recognition) {
+      try { recognition.start(); }
+      catch(err) { isRecording = false; resetVoiceUI(); setTimeout(processVoiceInput, 400); }
+    }
   };
   try { recognition.start(); }
   catch(e) { isRecording = false; resetVoiceUI(); setStatus('Errore avvio mic.', 'error'); }
@@ -380,14 +382,13 @@ function stopRecording() {
     setTimeout(() => { try { rec.onresult = null; } catch(e){} }, 400);
   }
   resetVoiceUI();
-  setTimeout(processVoiceInput, 500);
+  setTimeout(processVoiceInput, 800);
 }
 
 function resetVoiceUI() {
   document.getElementById('wave-bar').classList.remove('show');
   document.getElementById('btn-play').classList.remove('recording');
   document.getElementById('play-label').textContent = 'CHIEDI';
-  document.getElementById('play-sub').textContent = 'Parla';
 }
 
 async function processVoiceInput() {
@@ -406,20 +407,40 @@ async function processVoiceInput() {
   if (/\b(descrivi|analizza|analisi)\b/.test(lo))          { describeScene(); return; }
   if (/\b(esci|chiudi)\b/.test(lo))                        { exitApp(); return; }
 
-  // Rilevazione fermata GTT: "fermata 1234" o "palina 1234" o "orari fermata 1234"
-  const fermataMatch = lo.match(/(?:fermata|palina|stop|orari)\s+(\d{2,5})/);
-  if (fermataMatch) {
-    const stopNum = fermataMatch[1];
-    document.getElementById('voice-transcript').textContent = 'Cerco orari fermata ' + stopNum + '...';
+  // Rilevazione fermata GTT: "fermata 1234", "palina milledue", "orari bus"
+  if (/\b(fermata|palina|orari|palina)\b/.test(lo)) {
     if (!gttOpen) toggleGTT();
-    setTimeout(async () => {
-      setGTTStopAnswer('Cerco fermata ' + stopNum + '...');
-      await processStopNumber(stopNum);
-    }, 300);
+    // Estrai numero: prima prova cifre, poi parole→AI
+    const numMatch = lo.match(/\d{2,5}/);
+    if (numMatch) {
+      const stopNum = numMatch[0];
+      document.getElementById('voice-transcript').textContent = 'Cerco orari fermata ' + stopNum + '...';
+      setTimeout(async () => {
+        setGTTStopAnswer('Cerco fermata ' + stopNum + '...');
+        await processStopNumber(stopNum);
+      }, 300);
+    } else {
+      // Nessun numero cifre → prova conversione parole→AI
+      document.getElementById('voice-transcript').textContent = 'Elaboro numero fermata...';
+      setGTTStopAnswer('Elaboro: "' + transcript + '"...');
+      try {
+        const aiNum = await callGroqChat('Estrai SOLO il numero della fermata bus da questo testo (rispondi SOLO con le cifre, nessun altro testo): "' + transcript + '"');
+        const cleaned = aiNum.replace(/[^0-9]/g, '').trim();
+        if (cleaned && cleaned.length >= 2) {
+          setGTTStopAnswer('Cerco fermata ' + cleaned + '...');
+          await processStopNumber(cleaned);
+        } else {
+          // Nessun numero trovato: apri pannello e basta
+          speak('Pannello bus aperto. Di\' il numero della fermata.');
+        }
+      } catch(e) {
+        speak('Pannello bus aperto.');
+      }
+    }
     return;
   }
 
-  if (/\b(bus|tram|orari|fermata)\b/.test(lo))             { if (!gttOpen) toggleGTT(); return; }
+  if (/\b(bus|tram)\b/.test(lo)) { if (!gttOpen) toggleGTT(); return; }
   try {
     const answer = currentImageBase64
       ? await callGroqVision(`Utente chiede: "${transcript}". Rispondi in italiano, max 3 frasi, zero simboli.`, currentImageBase64)
@@ -1321,7 +1342,6 @@ function exitApp() {
   isRecording = isGttRecording = isStopVoiceRec = false;
   resetVoiceUI(); resetGTTVoiceUI(); resetStopVoiceUI();
   document.getElementById('app').style.display          = 'none';
-  document.getElementById('settings-fab').style.display = 'none';
   document.getElementById('exit-screen').style.display  = 'flex';
   const u = new SpeechSynthesisUtterance('Arrivederci.');
   u.lang = 'it-IT'; u.rate = 0.93;
@@ -1332,7 +1352,6 @@ function exitApp() {
 function reopenApp() {
   document.getElementById('exit-screen').style.display  = 'none';
   document.getElementById('app').style.display          = 'flex';
-  document.getElementById('settings-fab').style.display = 'flex';
 }
 
 // ═══ SETTINGS ══════════════════════════════════════════════
