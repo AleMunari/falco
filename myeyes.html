@@ -29,7 +29,7 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
 #preview-img{width:100%;object-fit:cover;max-height:160px;display:block}
 .preview-close{position:absolute;top:8px;right:8px;width:34px;height:34px;background:rgba(0,0,0,.75);border:none;border-radius:50%;color:#fff;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:'Nunito',sans-serif;font-weight:900}
 .row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.btn{width:100%;padding:0;border:none;border-radius:var(--r);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:transform .12s,filter .12s;font-family:'Nunito',sans-serif;position:relative;overflow:hidden}
+.btn{width:100%;padding:0;border:none;border-radius:var(--r);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:transform .12s,filter .12s;font-family:'Nunito',sans-serif;position:relative;overflow:visible;-webkit-touch-callout:none;touch-action:manipulation}
 .btn:active{transform:scale(.95);filter:brightness(.85)}
 .btn-label{font-size:clamp(1.4rem,9vw,2.2rem);font-weight:900;letter-spacing:0px;line-height:1;color:#fff;white-space:nowrap}
 
@@ -124,7 +124,7 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
       <button class="btn" id="btn-bus" onclick="toggleGTT()">
         <span class="btn-label">BUS</span>
       </button>
-      <button class="btn" id="btn-exit" onclick="exitApp()">
+      <button class="btn" id="btn-exit" onclick="exitApp()" style="z-index:10;position:relative">
         <span class="btn-label">ESCI</span>
       </button>
     </div>
@@ -136,11 +136,11 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
       <div class="gtt-section-title">ORARI ALLA FERMATA</div>
       <div class="gtt-subsection">
         <button id="btn-gtt-foto-fermata" class="btn" style="background:linear-gradient(135deg,#FFF500,#FFB800);padding:18px 10px;margin-bottom:0" onclick="readStopFromPhoto()">
-          <span class="btn-label" style="color:#000;font-size:1.4rem">📷 LEGGI FOTO</span>
+          <span class="btn-label" style="color:#000;font-size:clamp(0.9rem,4.5vw,1.2rem);white-space:normal;text-align:center;line-height:1.2">LEGGI<br>FOTO</span>
           
         </button>
         <button id="btn-gtt-voce-fermata" class="btn" style="background:linear-gradient(135deg,#00E5FF,#0077FF);padding:18px 10px;margin-bottom:0" onclick="toggleStopVoice()">
-          <span id="gtt-stop-label" class="btn-label" style="font-size:1.4rem">🎤 DI' FERMATA</span>
+          <span id="gtt-stop-label" class="btn-label" style="font-size:clamp(0.9rem,4.5vw,1.2rem);white-space:normal;text-align:center;line-height:1.2">DI'<br>FERMATA</span>
           
           <div id="gtt-stop-wave" class="wave-bar"><span></span><span></span><span></span><span></span><span></span></div>
         </button>
@@ -402,10 +402,13 @@ async function processVoiceInput() {
   document.getElementById('voice-transcript').textContent = transcript;
   setStatus('Elaboro...', 'active');
   const lo = transcript.toLowerCase();
-  if (/\b(scatta|fotocamera|foto)\b/.test(lo))             { openCamera(); return; }
-  if (/\b(galleria|scegli)\b/.test(lo))                    { openGallery(); return; }
-  if (/\b(descrivi|analizza|analisi)\b/.test(lo))          { describeScene(); return; }
-  if (/\b(esci|chiudi)\b/.test(lo))                        { exitApp(); return; }
+  // Comandi precisi — solo parole esatte, non parti di parola
+  if (/^(scatta|fotocamera)$|\bscatta\b|\bfotocamera\b/.test(lo)) { openCamera(); return; }
+  if (/\bgalleria\b|\bscegli foto\b/.test(lo))            { openGallery(); return; }
+  if (/\bdescrivi\b|\banalizza\b|^analisi$/.test(lo))     { describeScene(); return; }
+  if (/^esci$|^chiudi$|\besci dall/.test(lo))               { exitApp(); return; }
+  // "scatta foto" → camera; "foto" standalone senza contesto → camera
+  if (/^foto$/.test(lo.trim()))                               { openCamera(); return; }
 
   // Rilevazione fermata GTT: "fermata 1234", "palina milledue", "orari bus"
   if (/\b(fermata|palina|orari|palina)\b/.test(lo)) {
@@ -441,17 +444,22 @@ async function processVoiceInput() {
   }
 
   if (/\b(bus|tram)\b/.test(lo)) { if (!gttOpen) toggleGTT(); return; }
+  // Reset: se c'è una foto ma la domanda non è sulla foto, usa solo testo
+  const usaFoto = currentImageBase64 && /\b(vedi|guarda|cosa|descri|analiz|leggi|mostra|questa|immagin)\b/.test(lo);
   try {
-    const answer = currentImageBase64
-      ? await callGroqVision(`Utente chiede: "${transcript}". Rispondi in italiano, max 3 frasi, zero simboli.`, currentImageBase64)
+    setStatus('Elaboro...', 'active');
+    const answer = usaFoto
+      ? await callGroqVision('Utente chiede: "' + transcript + '". Rispondi in italiano, max 3 frasi, zero simboli.', currentImageBase64)
       : await callGroqChat(transcript);
     const clean = answer.replace(/[*_#`>]/g, '').trim();
     document.getElementById('voice-transcript').textContent = clean;
     speak(clean);
     setStatus('Risposta pronta.', 'active');
   } catch (e) {
-    speak('Errore di rete.');
-    setStatus('Errore.', 'error');
+    const msg = e.message || 'errore sconosciuto';
+    document.getElementById('voice-transcript').textContent = 'Errore: ' + msg;
+    speak('Errore. ' + (msg.includes('401') ? 'Chiave API non valida.' : msg.includes('429') ? 'Troppe richieste, riprova.' : 'Controlla la connessione.'));
+    setStatus('Errore: ' + msg.substring(0,30), 'error');
   }
 }
 
@@ -1335,18 +1343,27 @@ function openGTTRealtime() {
 
 // ═══ EXIT ══════════════════════════════════════════════════
 function exitApp() {
-  window.speechSynthesis.cancel();
-  if (recognition)    { try { recognition.stop();    } catch(e){} recognition    = null; }
-  if (gttRecognition) { try { gttRecognition.stop(); } catch(e){} gttRecognition = null; }
-  if (stopVoiceRec)   { try { stopVoiceRec.stop();   } catch(e){} stopVoiceRec   = null; }
-  isRecording = isGttRecording = isStopVoiceRec = false;
-  resetVoiceUI(); resetGTTVoiceUI(); resetStopVoiceUI();
-  document.getElementById('app').style.display          = 'none';
-  document.getElementById('exit-screen').style.display  = 'flex';
-  const u = new SpeechSynthesisUtterance('Arrivederci.');
-  u.lang = 'it-IT'; u.rate = 0.93;
-  u.onend = () => { try { window.close(); } catch(e){} };
-  setTimeout(() => window.speechSynthesis.speak(u), 80);
+  // Ferma tutto in modo sicuro
+  try { window.speechSynthesis.cancel(); } catch(e){}
+  isRecording = false; isGttRecording = false; isStopVoiceRec = false;
+  [recognition, gttRecognition, stopVoiceRec].forEach(r => {
+    if (r) { try { r.abort(); } catch(e){ try { r.stop(); } catch(e2){} } }
+  });
+  recognition = gttRecognition = stopVoiceRec = null;
+  try { resetVoiceUI(); } catch(e){}
+  try { resetGTTVoiceUI(); } catch(e){}
+  try { resetStopVoiceUI(); } catch(e){}
+  // Mostra schermata uscita
+  document.getElementById('app').style.display         = 'none';
+  document.getElementById('exit-screen').style.display = 'flex';
+  // Saluto vocale con delay
+  setTimeout(() => {
+    try {
+      const u = new SpeechSynthesisUtterance('Arrivederci.');
+      u.lang = 'it-IT'; u.rate = 0.93;
+      window.speechSynthesis.speak(u);
+    } catch(e){}
+  }, 100);
 }
 
 function reopenApp() {
