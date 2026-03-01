@@ -170,7 +170,7 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
       <input class="s-input" id="settings-key" type="password" placeholder="gsk_..." autocomplete="off">
       <button class="s-save" onclick="saveKeyFromSettings()">SALVA</button>
     </div>
-    <p class="s-info">API Key Groq — gratuita su <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a></p>
+    <p class="s-info">API Key Groq — la chiave viene salvata sul dispositivo e non serve reinserirla.<br>Gratuita su <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a></p>
     <button class="s-close" onclick="closeSettings()">CHIUDI</button>
   </div>
 </div>
@@ -188,7 +188,7 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
 'use strict';
 
 // ═══ STATE ═══════════════════════════════════════════════
-let apiKey             = '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';
+let apiKey             = localStorage.getItem('myeyes_apikey') || '';
 let currentImageBase64 = null;
 let recognition        = null;
 let isRecording        = false;
@@ -237,6 +237,14 @@ window.addEventListener('DOMContentLoaded', () => {
   } else {
     setStatus('Pronto.', 'idle');
     setTimeout(() => speak('MyEyes pronto.'), 600);
+  }
+
+  // Se non c'è chiave API salvata, apri subito le impostazioni
+  if (!apiKey) {
+    setTimeout(() => {
+      openSettings();
+      setStatus('Inserisci la chiave API Groq per usare l\'app.', 'error');
+    }, 800);
   }
 
   ['btn-camera','btn-gallery','btn-describe','btn-bus','btn-exit'].forEach(id => {
@@ -1015,26 +1023,32 @@ function startStopVoice() {
   btn.classList.add('recording');
   document.getElementById('gtt-stop-label').textContent = 'STOP';
   document.getElementById('gtt-stop-wave').classList.add('show');
-  document.getElementById('gtt-stop-answer').textContent = 'In ascolto... Di\' il numero fermata.';
+  document.getElementById('gtt-stop-answer').textContent = 'In ascolto... Di\' il numero fermata, poi premi STOP.';
   stopVoiceRec = new SR();
   stopVoiceRec.lang = 'it-IT';
-  stopVoiceRec.continuous = false;
-  stopVoiceRec.interimResults = false;
+  stopVoiceRec.continuous = true;
+  stopVoiceRec.interimResults = true;
   stopVoiceRec.maxAlternatives = 1;
   stopVoiceRec.onresult = (e) => {
-    stopVoiceTranscript = e.results[0][0].transcript;
+    let fin = '', int = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) fin += e.results[i][0].transcript + ' ';
+      else int += e.results[i][0].transcript;
+    }
+    stopVoiceTranscript += fin;
+    const display = (stopVoiceTranscript + int).trim();
+    if (display) document.getElementById('gtt-stop-answer').textContent = display;
   };
   stopVoiceRec.onerror = (e) => {
-    if (e.error === 'no-speech') return; // lascia che onend gestisca tutto normalmente
+    if (e.error === 'no-speech' || e.error === 'aborted') return;
     isStopVoiceRec = false; resetStopVoiceUI();
     setStatus('Errore mic: ' + e.error, 'error');
   };
+  // Safari chiude il mic dopo ~7s di silenzio: riavvia automaticamente
   stopVoiceRec.onend = () => {
-    isStopVoiceRec = false;
-    resetStopVoiceUI();
-    if (!stopVoiceProcessed) {
-      stopVoiceProcessed = true;
-      setTimeout(processStopVoice, 600);
+    if (isStopVoiceRec) {
+      try { stopVoiceRec.start(); }
+      catch(err) { isStopVoiceRec = false; resetStopVoiceUI(); triggerStopVoiceProcess(); }
     }
   };
   try { stopVoiceRec.start(); }
@@ -1045,12 +1059,21 @@ function stopStopVoice() {
   if (!isStopVoiceRec) return;
   isStopVoiceRec = false;
   if (stopVoiceRec) {
-    // Non nullificare onend: quando stop() scatta, onend chiama processStopVoice
+    stopVoiceRec.onend   = null;
+    stopVoiceRec.onerror = null;
     const rec = stopVoiceRec;
     stopVoiceRec = null;
     try { rec.stop(); } catch(e){}
+    setTimeout(() => { try { rec.onresult = null; } catch(e){} }, 400);
   }
   resetStopVoiceUI();
+  setTimeout(triggerStopVoiceProcess, 500);
+}
+
+function triggerStopVoiceProcess() {
+  if (stopVoiceProcessed) return;
+  stopVoiceProcessed = true;
+  processStopVoice();
 }
 
 function resetStopVoiceUI() {
@@ -1350,7 +1373,7 @@ function closeSettings() { document.getElementById('settings-overlay').classList
 function closeSettingsIfBg(e) { if (e.target === document.getElementById('settings-overlay')) closeSettings(); }
 function saveKeyFromSettings() {
   const val = document.getElementById('settings-key').value.trim();
-  if (val.startsWith('gsk_')) { apiKey = val; closeSettings(); speak('Chiave salvata.'); }
+  if (val.startsWith('gsk_')) { apiKey = val; localStorage.setItem('myeyes_apikey', val); closeSettings(); speak('Chiave salvata.'); }
   else speak('Chiave non valida. Deve iniziare con gsk.');
 }
 </script>
