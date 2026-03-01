@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MyEYES">
@@ -14,7 +14,7 @@
 <style>
 :root{--bg:#000;--card:#1a1a1a;--border:#444;--yellow:#FFE000;--green:#00C94A;--red:#FF1A1A;--muted:#aaa;--r:22px}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-serif;color:#fff}
+html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-serif;color:#fff;overflow:hidden}
 #app{display:none;position:fixed;inset:0;flex-direction:column;background:var(--bg)}
 #status-bar{padding:8px 16px;padding-top:max(8px,env(safe-area-inset-top));background:var(--card);font-size:.95rem;font-weight:700;color:var(--muted);min-height:40px;display:flex;align-items:center;gap:8px;flex-shrink:0;border-bottom:2px solid var(--border)}
 #status-dot{width:10px;height:10px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:background .3s}
@@ -29,22 +29,22 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
 #preview-img{width:100%;object-fit:cover;max-height:160px;display:block}
 .preview-close{position:absolute;top:8px;right:8px;width:34px;height:34px;background:rgba(0,0,0,.75);border:none;border-radius:50%;color:#fff;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:'Nunito',sans-serif;font-weight:900}
 .row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.btn{width:100%;padding:0;border:none;border-radius:var(--r);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:transform .12s,filter .12s;font-family:'Nunito',sans-serif;position:relative;overflow:visible;-webkit-touch-callout:none;touch-action:manipulation}
+.btn{width:100%;padding:0;border:none;border-radius:var(--r);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:transform .12s,filter .12s;font-family:'Nunito',sans-serif;position:relative;overflow:hidden}
 .btn:active{transform:scale(.95);filter:brightness(.85)}
-.btn-label{font-size:clamp(1.4rem,9vw,2.2rem);font-weight:900;letter-spacing:0px;line-height:1;color:#fff;white-space:nowrap}
-
-#btn-camera{background:linear-gradient(160deg,#FFF500,#FFB800);box-shadow:0 8px 36px rgba(255,220,0,.8);padding:28px 8px}
-#btn-camera .btn-label{color:#000;font-size:clamp(1.6rem,10vw,2.4rem);letter-spacing:1px}
-
-#btn-play{background:linear-gradient(135deg,#00E5FF,#0077FF);box-shadow:0 6px 28px rgba(0,200,255,.7);padding:28px 8px}
+.btn-label{font-size:2rem;font-weight:900;letter-spacing:1px;line-height:1;color:#fff}
+.btn-sub{font-size:.9rem;font-weight:700;color:rgba(255,255,255,.75);margin-top:4px}
+#btn-camera{background:linear-gradient(160deg,#FFF500,#FFB800);box-shadow:0 8px 36px rgba(255,220,0,.8);padding:30px 10px}
+#btn-camera .btn-label{color:#000;font-size:2.4rem;letter-spacing:2px}
+#btn-camera .btn-sub{color:rgba(0,0,0,.65)}
+#btn-play{background:linear-gradient(135deg,#00E5FF,#0077FF);box-shadow:0 6px 28px rgba(0,200,255,.7);padding:30px 10px}
 #btn-play.recording{background:linear-gradient(135deg,#FF2222,#CC0000);box-shadow:0 6px 28px rgba(255,30,30,.7)}
-#btn-gallery{background:linear-gradient(135deg,#FF7A00,#B34400);box-shadow:0 6px 28px rgba(255,100,0,.7);padding:24px 8px}
-#btn-describe{background:linear-gradient(135deg,#00FF66,#00AA44);box-shadow:0 6px 28px rgba(0,255,90,.6);padding:24px 8px}
-#btn-describe .btn-label{color:#000;font-size:clamp(1.1rem,7vw,1.8rem)}
-#btn-gallery .btn-label{font-size:clamp(1.1rem,7.5vw,1.9rem)}
-
-#btn-bus{background:linear-gradient(135deg,#CC00FF,#7700BB);box-shadow:0 6px 28px rgba(180,0,255,.7);padding:24px 8px}
-#btn-exit{background:linear-gradient(135deg,#FF3333,#CC0000);box-shadow:0 6px 28px rgba(255,30,30,.5);padding:24px 8px}
+#btn-gallery{background:linear-gradient(135deg,#FF7A00,#B34400);box-shadow:0 6px 28px rgba(255,100,0,.7);padding:26px 10px}
+#btn-describe{background:linear-gradient(135deg,#00FF66,#00AA44);box-shadow:0 6px 28px rgba(0,255,90,.6);padding:26px 10px}
+#btn-describe .btn-label{color:#000;font-size:1.5rem}
+#btn-gallery .btn-label{font-size:1.5rem}
+#btn-describe .btn-sub{color:rgba(0,0,0,.65)}
+#btn-bus{background:linear-gradient(135deg,#CC00FF,#7700BB);box-shadow:0 6px 28px rgba(180,0,255,.7);padding:26px 10px}
+#btn-exit{background:linear-gradient(135deg,#FF3333,#CC0000);box-shadow:0 6px 28px rgba(255,30,30,.5);padding:26px 10px}
 .wave-bar{display:none;align-items:center;justify-content:center;gap:4px;height:22px;margin-top:5px}
 .wave-bar.show{display:flex}
 .wave-bar span,.wave-bar-inner span{width:4px;background:#fff;border-radius:3px;animation:wave .7s ease-in-out infinite}
@@ -70,7 +70,7 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
 #gtt-wave-bar span:nth-child(1){height:5px;animation-delay:0s}#gtt-wave-bar span:nth-child(2){height:14px;animation-delay:.1s}#gtt-wave-bar span:nth-child(3){height:20px;animation-delay:.2s}#gtt-wave-bar span:nth-child(4){height:10px;animation-delay:.3s}#gtt-wave-bar span:nth-child(5){height:16px;animation-delay:.15s}
 #gtt-answer{font-size:.9rem;font-weight:700;color:var(--muted);text-align:center;line-height:1.5;padding:0 4px;min-height:20px}
 #btn-gtt-realtime{width:100%;padding:16px;background:linear-gradient(135deg,#FFB800,#FF7A00);border:none;border-radius:16px;font-family:'Nunito',sans-serif;font-size:1.1rem;font-weight:900;color:#000;cursor:pointer}
-#settings-fab{width:36px;height:36px;background:var(--yellow);border:none;border-radius:10px;color:#000;font-size:1.1rem;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;box-shadow:0 2px 8px rgba(255,220,0,.5)}
+#settings-fab{position:fixed;bottom:max(18px,env(safe-area-inset-bottom));right:16px;width:42px;height:42px;background:var(--yellow);border:none;border-radius:12px;color:#000;font-size:1.2rem;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:200;box-shadow:0 4px 16px rgba(255,220,0,.6)}
 #settings-overlay{display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.8);align-items:flex-end}
 #settings-overlay.open{display:flex}
 .settings-sheet{width:100%;background:var(--card);border-radius:24px 24px 0 0;padding:22px 22px max(22px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px}
@@ -92,7 +92,6 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
 <body>
 <div id="app">
   <div id="status-bar">
-    <button id="settings-fab" onclick="openSettings()">&#9881;</button>
     <div id="status-dot"></div>
     <div id="status-text">Pronto.</div>
     <button id="btn-stop-voice" onclick="stopVoice()">STOP VOCE</button>
@@ -104,28 +103,28 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
     </div>
     <div class="row-2">
       <button class="btn" id="btn-camera" onclick="openCamera()">
-        <span class="btn-label">FOTO</span>
+        <span class="btn-label">FOTO</span><span class="btn-sub">Fotocamera</span>
       </button>
       <button class="btn" id="btn-play" onclick="toggleRecording()">
         <span class="btn-label" id="play-label">CHIEDI</span>
-        
+        <span class="btn-sub" id="play-sub">Parla</span>
         <div class="wave-bar" id="wave-bar"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
       </button>
     </div>
     <div class="row-2">
       <button class="btn" id="btn-gallery" onclick="openGallery()">
-        <span class="btn-label">GALLERIA</span>
+        <span class="btn-label">GALLERIA</span><span class="btn-sub">Scegli foto</span>
       </button>
       <button class="btn" id="btn-describe" onclick="describeScene()">
-        <span class="btn-label">ANALISI AI</span>
+        <span class="btn-label">ANALISI AI</span><span class="btn-sub">Foto</span>
       </button>
     </div>
     <div class="row-2">
       <button class="btn" id="btn-bus" onclick="toggleGTT()">
-        <span class="btn-label">BUS</span>
+        <span class="btn-label">BUS</span><span class="btn-sub">GTT Torino</span>
       </button>
-      <button class="btn" id="btn-exit" onclick="exitApp()" style="z-index:10;position:relative">
-        <span class="btn-label">ESCI</span>
+      <button class="btn" id="btn-exit" onclick="exitApp()">
+        <span class="btn-label">ESCI</span><span class="btn-sub">Chiudi</span>
       </button>
     </div>
     <div id="voice-transcript">Premi CHIEDI e parla. Premi di nuovo per fermare.</div>
@@ -136,20 +135,17 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
       <div class="gtt-section-title">ORARI ALLA FERMATA</div>
       <div class="gtt-subsection">
         <button id="btn-gtt-foto-fermata" class="btn" style="background:linear-gradient(135deg,#FFF500,#FFB800);padding:18px 10px;margin-bottom:0" onclick="readStopFromPhoto()">
-          <span class="btn-label" style="color:#000;font-size:clamp(0.9rem,4.5vw,1.2rem);white-space:normal;text-align:center;line-height:1.2">LEGGI<br>FOTO</span>
-          
+          <span class="btn-label" style="color:#000;font-size:1.4rem">📷 LEGGI FOTO</span>
+          <span class="btn-sub" style="color:rgba(0,0,0,.65)">Fotografa il numero fermata</span>
         </button>
         <button id="btn-gtt-voce-fermata" class="btn" style="background:linear-gradient(135deg,#00E5FF,#0077FF);padding:18px 10px;margin-bottom:0" onclick="toggleStopVoice()">
-          <span id="gtt-stop-label" class="btn-label" style="font-size:clamp(0.9rem,4.5vw,1.2rem);white-space:normal;text-align:center;line-height:1.2">DI'<br>FERMATA</span>
-          
+          <span id="gtt-stop-label" class="btn-label" style="font-size:1.4rem">🎤 DI' FERMATA</span>
+          <span id="gtt-stop-sub" class="btn-sub">Es: "fermata 1234"</span>
           <div id="gtt-stop-wave" class="wave-bar"><span></span><span></span><span></span><span></span><span></span></div>
         </button>
       </div>
       <div id="gtt-stop-answer" style="font-size:1.25rem;font-weight:800;color:#FFE000;text-align:center;line-height:1.7;padding:8px 4px;min-height:20px;white-space:pre-line"></div>
-      <div style="display:flex;gap:8px;margin-top:6px">
-        <button id="btn-gtt-leggi" onclick="leggiOrari()" style="display:none;flex:1;padding:18px;background:linear-gradient(135deg,#00E676,#00897B);border:none;border-radius:16px;font-family:'Nunito',sans-serif;font-size:1.3rem;font-weight:900;color:#000;cursor:pointer">🔊 LEGGI</button>
-        <button id="btn-gtt-apri" onclick="openGTTStopPage()" style="display:none;flex:1;padding:18px;background:linear-gradient(135deg,#7700BB,#CC00FF);border:none;border-radius:16px;font-family:'Nunito',sans-serif;font-size:1.1rem;font-weight:900;color:#fff;cursor:pointer">🌐 APRI GTT</button>
-      </div>
+      <button id="btn-gtt-leggi" onclick="leggiOrari()" style="display:none;width:100%;padding:18px;background:linear-gradient(135deg,#00E676,#00897B);border:none;border-radius:16px;font-family:'Nunito',sans-serif;font-size:1.3rem;font-weight:900;color:#000;cursor:pointer;margin-top:6px">🔊 LEGGI</button>
 
       <div style="height:1px;background:#333;margin:4px 0"></div>
 
@@ -159,7 +155,7 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
       <button id="btn-gtt-location" onclick="getUserLocation()">📍 RILEVA POSIZIONE</button>
       <button id="btn-gtt-mic" onclick="toggleGTTVoice()">
         <span id="gtt-mic-label">🎤 CHIEDI</span>
-        
+        <span id="gtt-mic-sub">Dove vuoi andare?</span>
         <div id="gtt-wave-bar"><span></span><span></span><span></span><span></span><span></span></div>
       </button>
       <div id="gtt-answer" style="font-size:.9rem;font-weight:700;color:var(--muted);text-align:center;line-height:1.5;padding:0 4px;min-height:20px"></div>
@@ -169,6 +165,7 @@ html,body{height:100%;width:100%;background:var(--bg);font-family:'Nunito',sans-
   </div>
 </div>
 
+<button id="settings-fab" onclick="openSettings()">&#9881;</button>
 
 <div id="settings-overlay" onclick="closeSettingsIfBg(event)">
   <div class="settings-sheet">
@@ -244,11 +241,6 @@ function speak(text, onEnd) {
 
   let i = 0;
   function speakNext() {
-    // delay prima del primo chunk: dà tempo a Safari di completare il cancel()
-    if (i === 0) { setTimeout(_speakNext, 80); return; }
-    _speakNext();
-  }
-  function _speakNext() {
     if (i >= filtered.length) {
       document.getElementById('btn-stop-voice').style.display = 'none';
       if (onEnd) onEnd();
@@ -256,14 +248,14 @@ function speak(text, onEnd) {
     }
     const u = new SpeechSynthesisUtterance(filtered[i++]);
     u.lang = 'it-IT'; u.rate = 0.93; u.pitch = 1; u.volume = 1;
-    u.onend = _speakNext;
+    u.onend = speakNext;
     u.onerror = (e) => {
       if (e.error === 'interrupted' || e.error === 'canceled') {
         document.getElementById('btn-stop-voice').style.display = 'none';
         if (onEnd) onEnd();
         return;
       }
-      _speakNext(); // salta chunk problematico
+      speakNext(); // salta chunk problematico
     };
     window.speechSynthesis.speak(u);
   }
@@ -340,6 +332,7 @@ function startRecording() {
   document.getElementById('wave-bar').classList.add('show');
   document.getElementById('btn-play').classList.add('recording');
   document.getElementById('play-label').textContent = 'STOP';
+  document.getElementById('play-sub').textContent = 'Tocca per fermare';
   recognition = new SR();
   recognition.lang = 'it-IT';
   recognition.continuous = true;
@@ -360,10 +353,7 @@ function startRecording() {
     setStatus(e.error === 'not-allowed' ? 'Permesso negato.' : 'Errore: ' + e.error, 'error');
   };
   recognition.onend = () => {
-    if (isRecording && recognition) {
-      try { recognition.start(); }
-      catch(err) { isRecording = false; resetVoiceUI(); setTimeout(processVoiceInput, 400); }
-    }
+    if (isRecording) { try { recognition.start(); } catch(err) { isRecording = false; resetVoiceUI(); processVoiceInput(); } }
   };
   try { recognition.start(); }
   catch(e) { isRecording = false; resetVoiceUI(); setStatus('Errore avvio mic.', 'error'); }
@@ -382,13 +372,14 @@ function stopRecording() {
     setTimeout(() => { try { rec.onresult = null; } catch(e){} }, 400);
   }
   resetVoiceUI();
-  setTimeout(processVoiceInput, 800);
+  setTimeout(processVoiceInput, 500);
 }
 
 function resetVoiceUI() {
   document.getElementById('wave-bar').classList.remove('show');
   document.getElementById('btn-play').classList.remove('recording');
   document.getElementById('play-label').textContent = 'CHIEDI';
+  document.getElementById('play-sub').textContent = 'Parla';
 }
 
 async function processVoiceInput() {
@@ -402,64 +393,36 @@ async function processVoiceInput() {
   document.getElementById('voice-transcript').textContent = transcript;
   setStatus('Elaboro...', 'active');
   const lo = transcript.toLowerCase();
-  // Comandi precisi — solo parole esatte, non parti di parola
-  if (/^(scatta|fotocamera)$|\bscatta\b|\bfotocamera\b/.test(lo)) { openCamera(); return; }
-  if (/\bgalleria\b|\bscegli foto\b/.test(lo))            { openGallery(); return; }
-  if (/\bdescrivi\b|\banalizza\b|^analisi$/.test(lo))     { describeScene(); return; }
-  if (/^esci$|^chiudi$|\besci dall/.test(lo))               { exitApp(); return; }
-  // "scatta foto" → camera; "foto" standalone senza contesto → camera
-  if (/^foto$/.test(lo.trim()))                               { openCamera(); return; }
+  if (/\b(scatta|fotocamera|foto)\b/.test(lo))             { openCamera(); return; }
+  if (/\b(galleria|scegli)\b/.test(lo))                    { openGallery(); return; }
+  if (/\b(descrivi|analizza|analisi)\b/.test(lo))          { describeScene(); return; }
+  if (/\b(esci|chiudi)\b/.test(lo))                        { exitApp(); return; }
 
-  // Rilevazione fermata GTT: "fermata 1234", "palina milledue", "orari bus"
-  if (/\b(fermata|palina|orari|palina)\b/.test(lo)) {
+  // Rilevazione fermata GTT: "fermata 1234" o "palina 1234" o "orari fermata 1234"
+  const fermataMatch = lo.match(/(?:fermata|palina|stop|orari)\s+(\d{2,5})/);
+  if (fermataMatch) {
+    const stopNum = fermataMatch[1];
+    document.getElementById('voice-transcript').textContent = 'Cerco orari fermata ' + stopNum + '...';
     if (!gttOpen) toggleGTT();
-    // Estrai numero: prima prova cifre, poi parole→AI
-    const numMatch = lo.match(/\d{2,5}/);
-    if (numMatch) {
-      const stopNum = numMatch[0];
-      document.getElementById('voice-transcript').textContent = 'Cerco orari fermata ' + stopNum + '...';
-      setTimeout(async () => {
-        setGTTStopAnswer('Cerco fermata ' + stopNum + '...');
-        await processStopNumber(stopNum);
-      }, 300);
-    } else {
-      // Nessun numero cifre → prova conversione parole→AI
-      document.getElementById('voice-transcript').textContent = 'Elaboro numero fermata...';
-      setGTTStopAnswer('Elaboro: "' + transcript + '"...');
-      try {
-        const aiNum = await callGroqChat('Estrai SOLO il numero della fermata bus da questo testo (rispondi SOLO con le cifre, nessun altro testo): "' + transcript + '"');
-        const cleaned = aiNum.replace(/[^0-9]/g, '').trim();
-        if (cleaned && cleaned.length >= 2) {
-          setGTTStopAnswer('Cerco fermata ' + cleaned + '...');
-          await processStopNumber(cleaned);
-        } else {
-          // Nessun numero trovato: apri pannello e basta
-          speak('Pannello bus aperto. Di\' il numero della fermata.');
-        }
-      } catch(e) {
-        speak('Pannello bus aperto.');
-      }
-    }
+    setTimeout(async () => {
+      setGTTStopAnswer('Cerco fermata ' + stopNum + '...');
+      await processStopNumber(stopNum);
+    }, 300);
     return;
   }
 
-  if (/\b(bus|tram)\b/.test(lo)) { if (!gttOpen) toggleGTT(); return; }
-  // Reset: se c'è una foto ma la domanda non è sulla foto, usa solo testo
-  const usaFoto = currentImageBase64 && /\b(vedi|guarda|cosa|descri|analiz|leggi|mostra|questa|immagin)\b/.test(lo);
+  if (/\b(bus|tram|orari|fermata)\b/.test(lo))             { if (!gttOpen) toggleGTT(); return; }
   try {
-    setStatus('Elaboro...', 'active');
-    const answer = usaFoto
-      ? await callGroqVision('Utente chiede: "' + transcript + '". Rispondi in italiano, max 3 frasi, zero simboli.', currentImageBase64)
+    const answer = currentImageBase64
+      ? await callGroqVision(`Utente chiede: "${transcript}". Rispondi in italiano, max 3 frasi, zero simboli.`, currentImageBase64)
       : await callGroqChat(transcript);
     const clean = answer.replace(/[*_#`>]/g, '').trim();
     document.getElementById('voice-transcript').textContent = clean;
     speak(clean);
     setStatus('Risposta pronta.', 'active');
   } catch (e) {
-    const msg = e.message || 'errore sconosciuto';
-    document.getElementById('voice-transcript').textContent = 'Errore: ' + msg;
-    speak('Errore. ' + (msg.includes('401') ? 'Chiave API non valida.' : msg.includes('429') ? 'Troppe richieste, riprova.' : 'Controlla la connessione.'));
-    setStatus('Errore: ' + msg.substring(0,30), 'error');
+    speak('Errore di rete.');
+    setStatus('Errore.', 'error');
   }
 }
 
@@ -675,17 +638,12 @@ async function loadGTFS(onProgress) {
 // Controlla se un service_id è attivo oggi
 function isServiceActiveToday(cal) {
   if (!cal) return true;
-  // Se tutti i giorni sono NaN (colonne mancanti nel CSV) → assume attivo
-  const allNaN = cal.days.every(v => isNaN(v));
-  if (allNaN) return true;
   const d = new Date();
   const ds = d.getFullYear().toString() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
-  if (cal.start && ds < cal.start) return false;
-  if (cal.end   && ds > cal.end)   return false;
+  if (ds < cal.start || ds > cal.end) return false;
   const dow = d.getDay(); // 0=dom
   const idx = dow === 0 ? 6 : dow - 1; // lun=0…dom=6
-  const val = cal.days[idx];
-  return isNaN(val) ? true : val === 1;
+  return cal.days[idx] === 1;
 }
 
 // "HH:MM:SS" → minuti da mezzanotte (GTFS supporta valori >24h per corse notturne)
@@ -780,12 +738,10 @@ async function fetchGTTStop(stopNum) {
 //   vehicle_pos   → posizioni GPS mezzi
 // Il decoder protobuf è implementato inline (no dipendenze npm/cdn pesanti).
 
-// URL ufficiale verificato su Transitland/aperTO (das_gtfsrt, non das_gtt)
-const GTFSRT_TRIP_URL = 'http://percorsieorari.gtt.to.it/das_gtfsrt/trip_update.aspx';
+const GTFSRT_TRIP_URL = 'https://percorsieorari.gtt.to.it/das_gtt/TripUpdate.aspx';
 const GTFSRT_PROXIES  = [
-  (u) => 'https://corsproxy.io/?url=' + encodeURIComponent(u),       // corsproxy.io (formato /?url= corretto)
-  (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u), // allorigins fallback
-  (u) => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u) // terzo fallback
+  (u) => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
+  (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u)
 ];
 
 // Cache RT: si azzera ogni 30 secondi
@@ -998,10 +954,10 @@ async function processStopNumber(stopNum) {
 
 function setGTTStopAnswer(text) {
   document.getElementById('gtt-stop-answer').textContent = text;
-  // Nascondi LEGGI e APRI durante caricamento
-  const loading = !text || text.includes('...') || text.includes('Leggo') || text.includes('Cerco') || text.includes('Errore');
-  document.getElementById('btn-gtt-leggi').style.display = loading ? 'none' : 'block';
-  document.getElementById('btn-gtt-apri').style.display  = (loading || !lastStopNumber) ? 'none' : 'block';
+  // Nascondi LEGGI durante caricamento
+  if (!text || text.includes('...') || text.includes('Leggo') || text.includes('Cerco') || text.includes('Errore')) {
+    document.getElementById('btn-gtt-leggi').style.display = 'none';
+  }
 }
 
 function leggiOrari() {
@@ -1343,32 +1299,25 @@ function openGTTRealtime() {
 
 // ═══ EXIT ══════════════════════════════════════════════════
 function exitApp() {
-  // Ferma tutto in modo sicuro
-  try { window.speechSynthesis.cancel(); } catch(e){}
-  isRecording = false; isGttRecording = false; isStopVoiceRec = false;
-  [recognition, gttRecognition, stopVoiceRec].forEach(r => {
-    if (r) { try { r.abort(); } catch(e){ try { r.stop(); } catch(e2){} } }
-  });
-  recognition = gttRecognition = stopVoiceRec = null;
-  try { resetVoiceUI(); } catch(e){}
-  try { resetGTTVoiceUI(); } catch(e){}
-  try { resetStopVoiceUI(); } catch(e){}
-  // Mostra schermata uscita
-  document.getElementById('app').style.display         = 'none';
-  document.getElementById('exit-screen').style.display = 'flex';
-  // Saluto vocale con delay
-  setTimeout(() => {
-    try {
-      const u = new SpeechSynthesisUtterance('Arrivederci.');
-      u.lang = 'it-IT'; u.rate = 0.93;
-      window.speechSynthesis.speak(u);
-    } catch(e){}
-  }, 100);
+  window.speechSynthesis.cancel();
+  if (recognition)    { try { recognition.stop();    } catch(e){} recognition    = null; }
+  if (gttRecognition) { try { gttRecognition.stop(); } catch(e){} gttRecognition = null; }
+  if (stopVoiceRec)   { try { stopVoiceRec.stop();   } catch(e){} stopVoiceRec   = null; }
+  isRecording = isGttRecording = isStopVoiceRec = false;
+  resetVoiceUI(); resetGTTVoiceUI(); resetStopVoiceUI();
+  document.getElementById('app').style.display          = 'none';
+  document.getElementById('settings-fab').style.display = 'none';
+  document.getElementById('exit-screen').style.display  = 'flex';
+  const u = new SpeechSynthesisUtterance('Arrivederci.');
+  u.lang = 'it-IT'; u.rate = 0.93;
+  u.onend = () => { try { window.close(); } catch(e){} };
+  setTimeout(() => window.speechSynthesis.speak(u), 80);
 }
 
 function reopenApp() {
   document.getElementById('exit-screen').style.display  = 'none';
   document.getElementById('app').style.display          = 'flex';
+  document.getElementById('settings-fab').style.display = 'flex';
 }
 
 // ═══ SETTINGS ══════════════════════════════════════════════
