@@ -204,11 +204,41 @@ let lastGTTLineNumber  = '';
 let gttProcessing      = false;
 let lastVoiceText      = '';
 
+// ═══ GROQ ERROR HELPER ════════════════════════════════════
+// Traduce gli errori Groq in messaggi vocali chiari
+function groqErrorMessage(e) {
+  const msg = (e && e.message) ? e.message : String(e);
+  if (msg.includes('401') || msg.includes('invalid_api_key') || msg.includes('Unauthorized'))
+    return 'Chiave API non valida. Vai nelle impostazioni e inserisci una nuova chiave Groq.';
+  if (msg.includes('429') || msg.includes('rate_limit'))
+    return 'Troppe richieste. Aspetta un momento e riprova.';
+  if (msg.includes('403'))
+    return 'Accesso negato. Controlla la chiave API nelle impostazioni.';
+  if (msg.includes('decommissioned') || msg.includes('deprecated'))
+    return 'Modello AI non disponibile. Aggiorna l app.';
+  if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('network'))
+    return 'Nessuna connessione internet. Controlla il Wi-Fi o i dati.';
+  return 'Errore: ' + msg.substring(0, 80);
+}
+
 // ═══ INIT ═════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('app').style.display = 'flex';
-  setStatus('Pronto.', 'idle');
-  setTimeout(() => speak('MyEyes pronto.'), 600);
+
+  // PWA su iOS: il permesso microfono non viene ricordato tra sessioni.
+  // Mostra un avviso nello status bar al primo accesso così l'utente sa cosa aspettarsi.
+  const isPWA = window.navigator.standalone === true;
+  if (isPWA) {
+    setStatus('Premi CHIEDI: Safari chiederà il microfono ogni apertura.', 'idle');
+    setTimeout(() => {
+      setStatus('Pronto.', 'idle');
+      speak('MyEyes pronto. Safari chiederà il permesso microfono ad ogni apertura.');
+    }, 4000);
+  } else {
+    setStatus('Pronto.', 'idle');
+    setTimeout(() => speak('MyEyes pronto.'), 600);
+  }
+
   ['btn-camera','btn-gallery','btn-describe','btn-bus','btn-exit'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('touchstart', () => navigator.vibrate && navigator.vibrate(20), {passive:true});
@@ -304,7 +334,8 @@ Inizia con: "Davanti a te..."`;
     setStatus('Analisi completata.', 'active');
     speak(result);
   } catch (e) {
-    speak('Errore durante l analisi. Controlla la connessione.');
+    const msg = groqErrorMessage(e);
+    speak(msg);
     setStatus('Errore.', 'error');
   }
 }
@@ -413,7 +444,9 @@ async function processVoiceInput() {
     speak(clean);
     setStatus('Risposta pronta.', 'active');
   } catch (e) {
-    speak('Errore di rete.');
+    const msg = groqErrorMessage(e);
+    document.getElementById('voice-transcript').textContent = msg;
+    speak(msg);
     setStatus('Errore.', 'error');
   }
 }
@@ -880,8 +913,9 @@ async function readStopFromPhoto() {
     setGTTStopAnswer('Numero fermata ' + clean + ' rilevato. Cerco gli orari...');
     await processStopNumber(clean);
   } catch(e) {
-    setGTTStopAnswer('Errore lettura foto: ' + e.message);
-    speak('Errore lettura foto.');
+    const msg = groqErrorMessage(e);
+    setGTTStopAnswer(msg);
+    speak(msg);
   }
 }
 
@@ -937,9 +971,9 @@ async function processStopNumber(stopNum) {
     document.getElementById('btn-gtt-leggi').style.display = 'block';
     speak(voiceText);
   } catch(e) {
-    const msg = 'Errore recupero orari: ' + e.message;
+    const msg = groqErrorMessage(e);
     setGTTStopAnswer(msg);
-    speak('Errore nella ricerca degli orari. Controlla la connessione.');
+    speak(msg);
     setStatus('Errore.', 'error');
   }
 }
@@ -1057,9 +1091,9 @@ async function processStopVoice() {
         speak('Non ho capito il numero. Riprova dicendo per esempio: fermata duemila.');
       }
     } catch(e) {
-      const errMsg = 'Errore nella ricerca: ' + e.message;
-      setGTTStopAnswer(errMsg);
-      speak('Errore nella ricerca degli orari. Controlla la connessione.');
+      const msg = groqErrorMessage(e);
+      setGTTStopAnswer(msg);
+      speak(msg);
     }
   }
 }
@@ -1272,8 +1306,9 @@ async function processGTTVoice() {
     speak(clean);
 
   } catch(err) {
-    document.getElementById('gtt-answer').textContent = 'Errore: ' + err.message;
-    speak('Errore di rete. Controlla la connessione.');
+    const msg = groqErrorMessage(err);
+    document.getElementById('gtt-answer').textContent = msg;
+    speak(msg);
     setStatus('Errore.', 'error');
   }
   gttProcessing = false;
